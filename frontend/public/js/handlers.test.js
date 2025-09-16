@@ -17,6 +17,13 @@ beforeAll(() => {
     global.window = {
         Telegram: {
             WebApp: {
+                // Добавим MainButton для полноты картины, т.к. она может использоваться
+                MainButton: {
+                    showProgress: jest.fn(),
+                    hideProgress: jest.fn(),
+                    setText: jest.fn(),
+                    enable: jest.fn(),
+                },
                 // Используем jest.fn() для отслеживания вызовов
                 showAlert: jest.fn(),
                 HapticFeedback: {
@@ -39,10 +46,12 @@ describe('handleSaveActiveTask', () => {
         const initialTaskData = {
             taskId: taskId,
             name: 'Старое название',
-            project: 'Старый Проект',
-            responsible: 'Роман',
-            status: 'К выполнению',
+            projectId: '1', // Используем ID
+            curatorId: '10', // ID куратора
+            members: [{ userId: '10', name: 'Роман' }], // Массив объектов
+            status: { statusId: '1', name: 'К выполнению' }, // Объект статуса
             message: 'Старое сообщение',
+            stageId: '1',
             version: 1
         };
 
@@ -52,9 +61,10 @@ describe('handleSaveActiveTask', () => {
                     <div id="task-details-${taskId}" class="task-details edit-mode" data-version="1" data-task='${JSON.stringify(initialTaskData)}'>
                         <input type="text" class="task-name-edit" value="Новое название">
                         <textarea class="task-message-edit">Новое сообщение</textarea>
-                        <p class="task-status-view">В работе</p>
-                        <p class="task-project-view">Новый Проект</p>
-                        <p class="task-responsible-view">Александра, Максим</p>
+                        <p class="task-status-view" data-status-id="2">В работе</p>
+                        <p class="task-project-view" data-project-id="2">Новый Проект</p>
+                        <p class="task-responsible-view" data-member-ids="15,16">Александра, Максим</p>
+                        <p class="task-stage-view" data-stage-id="3">Новый Этап</p>
                     </div>
                 </div>
             </div>
@@ -68,16 +78,28 @@ describe('handleSaveActiveTask', () => {
         const taskId = 'task-79';
         const mockTaskInStore = {
             taskId: taskId,
-            name: 'Старое название',
-            project: 'Старый Проект',
-            responsible: 'Роман',
-            status: 'К выполнению',
-            message: 'Старое сообщение',
+            projectId: '1',
             version: 1
         };
 
-        store.getAppData.mockReturnValue({ userName: 'Admin' });
+        // Мокируем функции store для поиска по ID/имени
         store.findTask.mockReturnValue({ task: mockTaskInStore });
+        store.getAppData.mockReturnValue({ userName: 'Admin' });
+        store.findStatusByName.mockImplementation((name) => {
+            const statuses = {
+                'В работе': { statusId: '2', name: 'В работе' }
+            };
+            return statuses[name];
+        });
+        store.findUserById.mockImplementation((id) => {
+            const users = {
+                '15': { userId: '15', name: 'Александра' },
+                '16': { userId: '16', name: 'Максим' }
+            };
+            return users[id];
+        });
+
+        // Мок для api.saveTask
         api.saveTask.mockResolvedValue({ status: 'success', newVersion: 2 });
         
         // 2. ВЫПОЛНЯЕМ ДЕЙСТВИЕ (Act)
@@ -99,10 +121,20 @@ describe('handleSaveActiveTask', () => {
         expect(sentTaskData.taskId).toBe(taskId);
         expect(sentTaskData.name).toBe('Новое название');
         expect(sentTaskData.message).toBe('Новое сообщение');
-        expect(sentTaskData.status).toBe('В работе');
-        expect(sentTaskData.project).toBe('Новый Проект');
-        expect(sentTaskData.responsible).toEqual(['Александра', 'Максим']);
         expect(sentTaskData.version).toBe(1); // Отправляем старую версию для проверки на сервере
+
+        // Проверяем, что отправляются ID и объекты, как ожидает бэкенд
+        expect(sentTaskData.projectId).toBe('2');
+        expect(sentTaskData.stageId).toBe('3');
+        expect(sentTaskData.status).toEqual({ statusId: '2', name: 'В работе' });
+
+        // Проверяем, что куратор (первый в списке) и все участники отправляются как объекты
+        const expectedMembers = [
+            { userId: '15', name: 'Александра' },
+            { userId: '16', name: 'Максим' }
+        ];
+        expect(sentTaskData.members).toEqual(expectedMembers);
+        expect(sentTaskData.curator).toEqual(expectedMembers[0]); // Первый участник становится куратором
 
         // Проверяем, что после успешного сохранения были вызваны UI-функции
         expect(uiUtils.showMessage).toHaveBeenCalledWith('Изменения сохранены', 'success');

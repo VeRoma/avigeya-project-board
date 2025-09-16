@@ -104,6 +104,24 @@ export function findTask(taskId) {
     return { task: null, project: null };
 }
 
+/**
+ * Находит пользователя по ID.
+ */
+export function findUserById(userId) {
+    if (!_allUsers) return null;
+    // Приводим к строке для надежного сравнения
+    return _allUsers.find(u => String(u.userId) === String(userId));
+}
+
+/**
+ * Находит статус по имени.
+ */
+export function findStatusByName(statusName) {
+    if (!_allStatuses) return null;
+    return _allStatuses.find(s => s.name === statusName);
+}
+
+
 export const setStageFilters = (filters) => { stageFilters = filters; };
 export const getStageFilters = () => stageFilters;
 

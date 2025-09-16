@@ -4,61 +4,69 @@ import * as modals from './ui/modals.js';
 import * as uiUtils from './ui/utils.js';
 import * as store from './store.js';
 
+// --- НАЧАЛО ЗАМЕНЫ ФУНКЦИИ ---
 export async function handleSaveActiveTask() {
     const activeEditElement = document.querySelector('.task-details.edit-mode');
     if (!activeEditElement) return;
 
-    const appData = store.getAppData();
-    const responsibleText = activeEditElement.querySelector('.task-responsible-view').textContent;
-    const selectedUserNames = responsibleText ? responsibleText.split(',').map(s => s.trim()).filter(Boolean) : [];
-    
-    const taskId = activeEditElement.closest('[data-task-id]').dataset.taskId;
-    const { task: taskInAppData } = store.findTask(taskId);
-
-    if (!taskInAppData) {
-        uiUtils.showMessage('Не удалось найти исходную задачу для сохранения.', 'error');
-        return;
-    }
-
-    const allUsers = store.getAllUsers();
-    const responsibleUserIds = allUsers
-        .filter(emp => selectedUserNames.includes(emp.name))
-        .map(emp => emp.userId);
-
-    const statuses = store.getAllStatuses();
-    const statusName = activeEditElement.querySelector('.task-status-view').textContent;
-    const statusId = (statuses.find(s => s.name === statusName) || {}).statusId;
-
-    const allProjects = store.getAppData().allProjects;
-    const projectName = activeEditElement.querySelector('.task-project-view').textContent;
-    const project = allProjects.find(p => p.projectName === projectName);
-    const projectId = project ? project.projectId : null;
-
-    const stageName = activeEditElement.querySelector('.task-stage-view').textContent;
-    const allStages = store.getAppData().allStages || [];
-    const stage = allStages.find(s => s.name === stageName);
-    const stageId = stage ? stage.stageId : null;
-
-    const updatedTask = {
-        ...taskInAppData,
-        name: activeEditElement.querySelector('.task-name-edit').value,
-        status: statusName,
-        statusId: statusId,
-        project: projectName,
-        projectId: projectId,
-        stageId: stageId,
-        responsible: selectedUserNames.join(', '),
-        responsibleUserIds: responsibleUserIds,
-        version: parseInt(activeEditElement.dataset.version, 10),
-    };
-
     try {
-        const result = await api.saveTask({ taskData: updatedTask, modifierName: appData.userName });
+        const taskId = activeEditElement.closest('[data-task-id]').dataset.taskId;
+        const { task: originalTask } = store.findTask(taskId);
+        if (!originalTask) {
+            uiUtils.showMessage('Не удалось найти исходную задачу для сохранения.', 'error');
+            return;
+        }
+
+        // 1. Собираем ID участников из DOM
+        const memberIdsString = activeEditElement.querySelector('.task-responsible-view').dataset.memberIds || '';
+        const memberIds = memberIdsString.split(',').filter(Boolean);
+
+        // 2. Превращаем ID в полноценные объекты UserDto, используя store
+        const members = memberIds.map(id => store.findUserById(id)).filter(Boolean);
+
+        // 3. Определяем куратора (первый в списке)
+        const curator = members.length > 0 ? members[0] : null;
+
+        // 4. Собираем статус
+        const statusEl = activeEditElement.querySelector('.task-status-view');
+        const statusName = statusEl.textContent;
+        const status = store.findStatusByName(statusName);
+
+        // 5. Собираем остальные данные из DOM
+        const projectId = activeEditElement.querySelector('.task-project-view').dataset.projectId;
+        const stageId = activeEditElement.querySelector('.task-stage-view').dataset.stageId;
+        const name = activeEditElement.querySelector('.task-name-edit').value;
+        const message = activeEditElement.querySelector('.task-message-edit').value;
+
+        // 6. Формируем объект taskData, который соответствует TaskDto на бэкенде
+        const taskData = {
+            taskId: taskId,
+            name: name,
+            message: message,
+            projectId: projectId,
+            stageId: stageId,
+            status: status, // Отправляем объект {statusId, name, ...}
+            curator: curator, // Отправляем объект {userId, name, ...}
+            members: members, // Отправляем массив объектов
+            version: parseInt(activeEditElement.dataset.version, 10),
+        };
+
+        // 7. Отправляем данные на сервер
+        const appData = store.getAppData();
+        const result = await api.saveTask({ taskData, modifierName: appData.userName });
+
         if (result.status === 'success') {
             uiUtils.showMessage('Изменения сохранены', 'success');
-            Object.assign(taskInAppData, updatedTask, { version: result.newVersion });
-            
-            activeEditElement.dataset.task = JSON.stringify(taskInAppData).replace(/'/g, '&apos;');
+
+            // Обновляем задачу в локальном хранилище (store)
+            Object.assign(originalTask, taskData, {
+                // Бэкенд может вернуть не все поля, поэтому дополняем
+                curatorId: curator ? curator.userId : null,
+                version: result.newVersion
+            });
+
+            // Обновляем data-атрибуты в DOM для следующего редактирования
+            activeEditElement.dataset.task = JSON.stringify(originalTask).replace(/'/g, '&apos;');
             activeEditElement.dataset.version = result.newVersion;
 
             uiUtils.exitEditMode(activeEditElement);
@@ -66,14 +74,14 @@ export async function handleSaveActiveTask() {
             
             const accordionState = uiUtils.getAccordionState();
             render.renderProjects(appData.projects, appData.userName, appData.userRole, accordionState, store.getStageFilters());
-
         } else {
-             uiUtils.showMessage('Ошибка сохранения: ' + (result.error || 'Неизвестная ошибка'), 'error');
+            uiUtils.showMessage('Ошибка сохранения: ' + (result.message || 'Неизвестная ошибка'), 'error');
         }
     } catch (error) {
         uiUtils.showMessage('Критическая ошибка сохранения: ' + error.message, 'error');
     }
 }
+// --- КОНЕЦ ЗАМЕНЫ ФУНКЦИИ ---
 
 export function handleShowAddTaskModal() {
     const appData = store.getAppData();

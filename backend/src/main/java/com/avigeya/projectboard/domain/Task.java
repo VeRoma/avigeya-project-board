@@ -25,7 +25,6 @@ public class Task {
 
     private LocalDate finishDate;
 
-
     private boolean isDeleted;
 
     // --- СВЯЗИ С ДРУГИМИ СУЩНОСТЯМИ ---
@@ -37,7 +36,6 @@ public class Task {
     @ManyToOne
     @JoinColumn(name = "stage_id")
     private Stage stage;
-
 
     @ManyToOne
     @JoinColumn(name = "project_id", nullable = false)

@@ -256,8 +256,8 @@ export function openAddTaskModal(allProjects, allUsers, userRole, userName) {
         } else {
             userContainer.innerHTML = projectMembers.map(emp => `
                 <label class="flex items-center space-x-3 p-3 rounded-md hover:bg-gray-200">
-                    <input type="checkbox" value="${emp.name}" class="user-checkbox w-4 h-4 rounded">
-                    <span>${emp.name}</span>
+                    <input type="checkbox" value="${emp.userId}" class="user-checkbox w-4 h-4 rounded">
+                    <span>${emp.name}</span> <!-- Отображаем имя, но в value храним ID -->
                 </label>
             `).join('');
         }
