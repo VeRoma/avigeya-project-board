@@ -5,6 +5,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -29,26 +31,27 @@ public class Task {
 
     // --- СВЯЗИ С ДРУГИМИ СУЩНОСТЯМИ ---
 
-    @ManyToOne
-    @JoinColumn(name = "status_id") // Указываем, какой столбец используется для связи
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "status_id")
     private Status status;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "stage_id")
     private Stage stage;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
 
-    @ManyToOne
-    @JoinColumn(name = "user_id", nullable = false) // Ответственный
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "curator_id", nullable = false) // Ответственный. Было user_id
     private User curator;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "author_user_id", nullable = false) // Автор
     private User author;
 
-    // Пока пропустим status_id и stage_id, мы вернемся к ним позже
-    // т.к. это тоже будут отдельные сущности-справочники.
+    @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<TaskMember> taskMembers = new HashSet<>();
+
 }
