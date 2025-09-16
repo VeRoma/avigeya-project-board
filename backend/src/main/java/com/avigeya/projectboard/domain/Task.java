@@ -44,7 +44,7 @@ public class Task {
     private Project project;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "curator_id", nullable = false) // Ответственный. Было user_id
+    @JoinColumn(name = "user_id", nullable = false) // Ответственный
     private User curator;
 
     @ManyToOne(fetch = FetchType.LAZY)
