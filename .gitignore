@@ -1,0 +1,27 @@
+# ==================
+#      Backend (Java/Maven)
+# ==================
+backend/target/
+backend/.mvn/
+backend/mvnw
+backend/mvnw.cmd
+
+# ==================
+#      Frontend (Node.js)
+# ==================
+frontend/node_modules/
+frontend/.env
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# ==================
+#      IDE & OS Files
+# ==================
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+

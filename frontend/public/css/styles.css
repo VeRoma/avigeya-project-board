@@ -1,0 +1,602 @@
+html {
+    scroll-behavior: smooth;
+    scrollbar-gutter: stable;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--tg-theme-bg-color, #ffffff);
+    color: var(--tg-theme-text-color, #000000);
+}
+
+.header {
+    background-color: var(--tg-theme-secondary-bg-color, #f3f3f3);
+    border-bottom: 1px solid var(--tg-theme-hint-color, #e0e0e0);
+    transition: all 0.6s ease-out;
+
+    /* --- ДОБАВЛЕНО: Прилепляем хедер к верху --- */
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    /* Должен быть ниже модальных окон (у которых 50) */
+
+    /* --- УДАЛЕНО: Больше не ограничиваем высоту --- */
+    /* max-height: 100px; */
+    /* overflow: hidden; */
+}
+
+.header #greeting-text {
+    color: var(--tg-theme-hint-color, #999999);
+}
+
+#app-header.hidden-header {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-bottom: 0;
+    overflow: hidden;
+    transition: all 0.3s ease-out;
+}
+
+.card {
+    background-color: var(--tg-theme-secondary-bg-color, #f8f8f8);
+    transition: transform 0.2s ease-out;
+    /* --- ДОБАВЛЕНО: Задаем ширину почти 100% и центрируем --- */
+    width: 100%;
+    margin: 0 auto;
+}
+
+.card:hover,
+.task-container:hover {
+    /* --- ИЗМЕНЕНО: Уменьшаем эффект масштабирования --- */
+    transform: scale(1.01);
+    z-index: 10;
+}
+
+.task-container {
+    transition: transform 0.2s ease-out;
+}
+
+
+
+.collapsible-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+
+.collapsible-content.expanded {
+    max-height: 1500px;
+    transition: max-height 0.4s ease-in;
+}
+
+.task-header {
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 12px;
+}
+
+.line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+}
+
+.task-details .view-field {
+    display: flex;
+}
+
+.task-details .edit-field {
+    display: none;
+}
+
+.task-details.edit-mode .view-field {
+    display: none;
+}
+
+.task-details.edit-mode .edit-field {
+    display: block;
+}
+
+.task-details.edit-mode .modal-trigger-field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 50;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.modal.active {
+    display: flex;
+    opacity: 1;
+}
+
+.modal-content {
+    background-color: var(--tg-theme-secondary-bg-color, #ffffff);
+    width: 100%;
+    max-width: 500px;
+    border-radius: 0.75rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-content-compact {
+    width: auto;
+    min-width: 280px;
+}
+
+.modal-body {
+    overflow-y: auto;
+    padding: 1rem;
+    max-height: 85vh;
+    /* Увеличиваем высоту до 85% от высоты экрана */
+}
+
+
+
+/* --- ИСПРАВЛЕНИЕ ЗДЕСЬ --- */
+#toast-notification {
+    /* Начальное состояние: скрыто под экраном и невидимо */
+    bottom: -100px;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out, bottom 0.3s ease-in-out;
+}
+
+/* Стиль, который JavaScript будет добавлять для показа */
+#toast-notification.show {
+    bottom: 1.5rem;
+    opacity: 1;
+}
+
+/* -------------------------- */
+
+.edit-container {
+    background-color: var(--tg-theme-bg-color, #ffffff);
+}
+
+.task-details.edit-mode .edit-container {
+    border: 1px solid var(--tg-theme-hint-color, #e0e0e0);
+}
+
+#fab-button {
+    /* --- ИЗМЕНЕНО: Позиционирование --- */
+    position: fixed;
+    /* Убеждаемся, что позиционирование абсолютное */
+    bottom: 5px;
+    /* Смещаем ближе к нижнему краю */
+    right: 5px;
+    /* Смещаем ближе к правому краю */
+
+    /* --- ИЗМЕНЕНО: Размер (уменьшен на ~20%) --- */
+    width: 48px;
+    height: 48px;
+
+    z-index: 60;
+    /* Оставляем z-index без изменений */
+
+    /* Убираем внешние отступы, так как теперь используем bottom/right */
+    margin-right: 0;
+    margin-bottom: 0;
+
+    /* Добавим плавности для красоты */
+    transition: transform 0.2s ease-out;
+}
+
+#fab-button:active {
+    /* Небольшой эффект при нажатии */
+    transform: scale(0.95);
+}
+
+.modal-select-btn {
+    background-color: var(--tg-theme-button-color, #40a7e3);
+    color: var(--tg-theme-button-text-color, #ffffff);
+}
+
+.details-input {
+    width: 100%;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--tg-theme-hint-color);
+    background-color: var(--tg-theme-bg-color, #ffffff);
+    color: var(--tg-theme-text-color, #000000);
+}
+
+.tasks-list>.task-container:not(:first-child) {
+    border-top: 1px solid var(--tg-theme-hint-color, #e0e0e0);
+}
+
+@keyframes pulse-glow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 8px 0px rgba(59, 130, 246, 0);
+    }
+
+    50% {
+        box-shadow: 0 0 8px 4px rgba(59, 130, 246, 0.4);
+    }
+}
+
+.task-status-checker {
+    width: 45px;
+    height: 45px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    border-radius: 0.5rem;
+    border: 1px solid transparent;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+    transition: transform 0.15s ease-out, background-color 0.2s ease;
+}
+
+.task-status-checker:hover {
+    transform: scale(1.1);
+}
+
+.task-status-checker:active {
+    transform: scale(0.95);
+}
+
+body[style*="--tg-color-scheme: light"] .task-status-checker {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+body[style*="--tg-color-scheme: dark"] .task-status-checker {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.task-status-checker[data-status="Выполнено"] {
+    color: #16a34a;
+    border-color: #22c55e;
+}
+
+.task-status-checker[data-status="В работе"] {
+    animation: pulse-glow 2.5s infinite ease-in-out;
+    color: #2563eb;
+    border-color: #60a5fa;
+}
+
+.task-status-checker[data-status="Отложено"] {
+    color: #ca8a04;
+    border-color: #facc15;
+}
+
+.task-status-checker[data-status="Отменено"] {
+    color: #64748b;
+    border-color: #94a3b8;
+    text-decoration: line-through;
+}
+
+.task-status-checker[data-status="На контроле"] {
+    color: #7e22ce;
+    border-color: #a855f7;
+}
+
+.task-status-checker[data-status="К выполнению"] {
+    color: #ce3622;
+    border-color: #f2624f;
+}
+
+.status-toggle {
+    display: flex;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--tg-theme-hint-color, #cccccc);
+    margin-top: 4px;
+}
+
+.toggle-option {
+    flex: 1;
+    padding: 8px;
+    /* Немного уменьшим паддинг */
+    text-align: center;
+    cursor: pointer;
+    background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
+    color: var(--tg-theme-text-color, #000000);
+    transition: background-color 0.2s, color 0.2s;
+    user-select: none;
+
+    /* Новые стили для вертикального расположения */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    /* Расстояние между иконкой и текстом */
+}
+
+.toggle-option .toggle-icon {
+    font-size: 1.5rem;
+    /* Увеличиваем иконку */
+}
+
+.toggle-option .toggle-text {
+    font-size: 0.75rem;
+    /* Размер как у <label> */
+    line-height: 1;
+}
+
+.toggle-option.active {
+    background-color: var(--tg-theme-button-color, #007bff);
+    color: var(--tg-theme-button-text-color, #ffffff);
+    font-weight: 600;
+}
+
+.toggle-option:not(:last-child) {
+    border-right: 1px solid var(--tg-theme-hint-color, #cccccc);
+}
+
+.task-card-container.dragging {
+    opacity: 0.4;
+    transform: scale(1.03);
+}
+
+.drag-over::before {
+    content: '';
+    display: block;
+    height: 60px;
+    margin: 4px 0;
+    background-color: rgba(0, 123, 255, 0.1);
+    border: 2px dashed var(--tg-theme-button-color, #007bff);
+    border-radius: 12px;
+}
+
+.tasks-list.drag-over-end {
+    padding-bottom: 76px;
+    background:
+        linear-gradient(to top, rgba(0, 123, 255, 0.1), transparent 68px),
+        repeating-linear-gradient(-45deg,
+            transparent,
+            transparent 5px,
+            rgba(0, 123, 255, 0.1) 5px,
+            rgba(0, 123, 255, 0.1) 10px);
+    transition: padding-bottom 0.2s ease-in-out;
+}
+
+/* --- Стили для уведомлений --- */
+.notification {
+    position: fixed;
+    top: -100px;
+    /* Изначально скрыто за экраном */
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 20px;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 1000;
+    transition: top 0.5s ease-in-out;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.notification.show {
+    top: 20px;
+    /* Показываем вверху экрана */
+}
+
+.notification.success {
+    background-color: #28a745;
+    /* Зеленый цвет для успеха */
+}
+
+.notification.error {
+    background-color: #dc3545;
+    /* Красный цвет для ошибки */
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: none;
+    /* <-- Этот стиль скрывает окно по умолчанию */
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-overlay.active {
+    display: flex;
+    /* <-- Этот стиль показывает окно, когда JS добавляет класс .active */
+}
+
+/* --- Стили для тулбара видов --- */
+.view-btn {
+    display: flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background-color: transparent;
+    color: var(--tg-theme-hint-color);
+    border: 1px solid transparent;
+    transition: all 0.2s ease-in-out;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.view-btn:hover {
+    background-color: var(--tg-theme-secondary-bg-color);
+}
+
+.view-btn.active {
+    color: var(--tg-theme-button-color);
+    background-color: var(--tg-theme-secondary-bg-color);
+    border-color: var(--tg-theme-button-color);
+    font-weight: 700;
+}
+
+/* --- ДОБАВЛЕНО: Разделитель между шапкой проекта и списком задач --- */
+.project-content {
+    border-top: 1px solid var(--tg-theme-hint-color, #e0e0e0);
+}
+
+/* --- ДОБАВЛЕНО: Разделители между задачами внутри проекта --- */
+.tasks-list .task-container:not(:first-child) {
+    border-top: 1px solid var(--tg-theme-hint-color, #e0e0e0);
+}
+
+/* --- ДОБАВЛЕНО: Отступы для заголовка задачи, т.к. мы убрали карточку --- */
+.task-container .task-header {
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+/* --- ДОБАВЛЕНО: Отключаем масштабирование для раскрытых карточек --- */
+.card:has(.collapsible-content.expanded):hover,
+.task-container:has(.collapsible-content.expanded):hover {
+    transform: none;
+    /* Убираем трансформацию */
+    cursor: default;
+    /* Меняем курсор, т.к. основное действие уже выполнено */
+}
+
+/* --- ДОБАВЛЕНО: Защита иконок в шапке проекта от длинного текста --- */
+
+/* 1. Делаем шапку гибким контейнером */
+.project-header {
+    display: flex;
+    justify-content: space-between;
+    /* Размещаем элементы по краям */
+    align-items: center;
+    /* Выравниваем по центру по вертикали */
+    gap: 16px;
+    /* Добавляем отступ между названием и иконками */
+}
+
+/* 2. Позволяем блоку с названием расти, но не даем ему толкать иконки */
+.project-title-container {
+    flex-grow: 1;
+    /* Блок будет занимать все доступное пространство */
+    min-width: 0;
+    /* Технический трюк, чтобы длинный текст мог усекаться */
+}
+
+/* 3. Делаем блок с иконками фиксированным и не сжимаемым */
+.project-actions {
+    flex-shrink: 0;
+    /* Запрещаем блоку сжиматься */
+    display: flex;
+    /* Выравниваем иконки внутри блока */
+    align-items: center;
+}
+
+/* 4. Убираем абсолютное позиционирование с самих кнопок, т.к. оно больше не нужно */
+.project-header .manage-members-btn,
+.project-header .manage-stages-btn {
+    position: static;
+}
+
+/* --- ДОБАВЛЕНО: Уменьшаем вертикальное расстояние между карточками в 2 раза --- */
+#projects-container>.card:not(:first-child),
+#tasks-list-container>.card:not(:first-child) {
+    margin-top: 0.7rem;
+    /* 0.5rem это в 2 раза меньше, чем 1rem (space-y-4) */
+}
+
+/* --- Стили для фильтра по этапам --- */
+.toolbar-separator {
+    width: 1px;
+    height: 24px;
+    background-color: var(--tg-theme-hint-color);
+    margin: 0 8px;
+}
+
+.view-btn.filtered {
+    color: var(--tg-theme-button-color);
+    background-color: rgba(46, 166, 255, 0.1);
+}
+
+#stages-filter-modal .modal-content {
+    max-width: 320px;
+}
+
+.stage-filter-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    cursor: pointer;
+    border-radius: 8px;
+}
+
+.stage-filter-item:hover {
+    background-color: var(--tg-theme-secondary-bg-color);
+}
+
+.stage-filter-item input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    margin-left: 16px;
+}
+
+#stages-filter-modal .modal-body {
+    max-height: 50vh;
+    /* Ограничиваем высоту (50% от высоты экрана) */
+    overflow-y: auto;
+    /* Добавляем вертикальный скролл, если необходимо */
+}
+
+/* --- Стили для унифицированных модальных окон --- */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid var(--tg-theme-hint-color);
+}
+
+.list-item-selectable {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    cursor: pointer;
+    border-radius: 8px;
+}
+
+.list-item-selectable:hover {
+    background-color: var(--tg-theme-secondary-bg-color);
+}
+
+.list-item-selectable input[type="checkbox"],
+.select-all-checkbox {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    margin-left: 16px;
+    cursor: pointer;
+}
+
+/* Стиль для промежуточного состояния чекбокса "Выбрать все" */
+.select-all-checkbox:indeterminate {
+    background-color: var(--tg-theme-button-color);
+    border-color: var(--tg-theme-button-color);
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 16 16'%3e%3cpath stroke='white' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 8h8'/%3e%3c/svg%3e");
+}
