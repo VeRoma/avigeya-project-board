@@ -28,7 +28,7 @@ export function renderProjects(projects, userName, userRole, expandedState = {},
 
     const statuses = store.getAllStatuses();
 
-    if (!projects || projects.length === 0) {
+    if (!projects || projects.length === 0) { // This is correct
         mainContainer.innerHTML = `<div class="p-4 rounded-lg text-center" style="background-color: var(--tg-theme-secondary-bg-color);">Проекты не найдены.</div>`;
         return;
     }
@@ -63,13 +63,14 @@ export function renderProjects(projects, userName, userRole, expandedState = {},
         });
 
         // Группируем задачи по статусу
-        const tasksByStatus = project.tasks.reduce((acc, task) => {
-            if (!acc[task.status]) acc[task.status] = [];
-            acc[task.status].push(task);
+        const tasksByStatus = project.tasks.reduce((acc, task) => { // task.status is an object
+            const statusName = task.status ? task.status.name : 'Без статуса'; // Use the name property
+            if (!acc[statusName]) acc[statusName] = [];
+            acc[statusName].push(task);
             return acc;
         }, {});
         
-        const sortedStatusKeys = Object.keys(tasksByStatus).sort((a,b) => (statuses.find(s => s.name === a) || {}).order - (statuses.find(s => s.name === b) || {}).order);
+        const sortedStatusKeys = Object.keys(tasksByStatus).sort((a,b) => (statuses.find(s => s.name === a) || { order: 99 }).order - (statuses.find(s => s.name === b) || { order: 99 }).order);
         
         sortedStatusKeys.forEach(status => {
             const tasksInGroup = tasksByStatus[status];
@@ -215,14 +216,14 @@ export function renderTasksView(tasks, statuses, isMyTasksView = false) {
     }
 
     tasks.sort((a, b) => {
-        const orderA = (statuses.find(s => s.name === a.status) || { order: 99 }).order;
-        const orderB = (statuses.find(s => s.name === b.status) || { order: 99 }).order;
+        const orderA = (a.status && statuses.find(s => s.name === a.status.name) || { order: 99 }).order;
+        const orderB = (b.status && statuses.find(s => s.name === b.status.name) || { order: 99 }).order;
         if (orderA !== orderB) return orderA - orderB;
         return (a.priority || 999) - (b.priority || 999);
     });
 
     const tasksByStatus = tasks.reduce((acc, task) => {
-        const status = task.status || 'Неизвестный статус';
+        const status = task.status ? task.status.name : 'Неизвестный статус';
         if (!acc[status]) {
             acc[status] = [];
         }

@@ -41,7 +41,7 @@ export async function initializeApp() {
         // --- ДОБАВЛЕНО: Логирование полученных данных ---
         console.log('[AUTH] > Получены данные с сервера (appData):', appData);
         // ---------------------------------------------
-
+        
         // --- START: KEY CORRECTION - Distribute tasks into projects ---
         // Бэкенд возвращает проекты и задачи раздельно. Соберем их вместе.
         if (appData && appData.projects && appData.tasks) {

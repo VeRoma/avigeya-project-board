@@ -176,11 +176,11 @@ export function openProjectModal(activeTaskDetailsElement, allProjects) {
 export function openAddTaskModal(allProjects, allUsers, userRole, userName) {
     document.body.classList.add('overflow-hidden');
     
-    const projectsOptions = allProjects.map(p => `<option value="${p.projectId}">${p.projectName}</option>`).join('');
+    const projectsOptions = allProjects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
     
     const allStatuses = store.getAllStatuses();
-    const allowedStatusIds = new Set(['1', '5', '6']);
-    const filteredStatuses = allStatuses.filter(status => allowedStatusIds.has(status.statusId));
+    const allowedStatusIds = new Set(['1', '5', '6']); // These are IDs as strings
+    const filteredStatuses = allStatuses.filter(status => allowedStatusIds.has(String(status.id))); // Use status.id
     filteredStatuses.sort((a, b) => a.order - b.order);
 
     const statusToggleHtml = filteredStatuses.map((status, index) => {
@@ -245,9 +245,9 @@ export function openAddTaskModal(allProjects, allUsers, userRole, userName) {
         // Обновляем список участников из предзагруженных данных
         const allProjectMembers = store.getAllProjectMembers();
         const projectMemberIds = new Set(
-            allProjectMembers
-                .filter(m => m.projectId == projectId && m.isActive === 'TRUE')
-                .map(m => m.userId)
+            allProjectMembers // This is correct
+                .filter(m => String(m.projectId) === String(projectId) && m.isActive === 'TRUE') // Compare as strings
+                .map(m => m.userId) // This is correct
         );
         const projectMembers = allUsers.filter(emp => projectMemberIds.has(emp.userId));
         
@@ -265,18 +265,18 @@ export function openAddTaskModal(allProjects, allUsers, userRole, userName) {
         // Обновляем список этапов из предзагруженных данных
         const allProjectStages = store.getAllProjectStages();
         const activeStageIds = new Set(
-            allProjectStages
-                .filter(ps => ps.projectId == projectId && ps.isActive === 'TRUE')
-                .map(ps => ps.stageId)
+            allProjectStages // This is correct
+                .filter(ps => String(ps.projectId) === String(projectId) && ps.isActive === 'TRUE') // Compare as strings
+                .map(ps => ps.stageId) // This is correct
         );
         const allStages = store.getAppData().allStages || [];
-        const availableStages = allStages.filter(s => activeStageIds.has(String(s.stageId)));
+        const availableStages = allStages.filter(s => activeStageIds.has(String(s.id))); // Use s.id
         
         if (availableStages.length === 0) {
             stageSelect.innerHTML = '<option value="" disabled selected>Нет активных этапов</option>';
         } else {
-            stageSelect.innerHTML = availableStages.map(stage => 
-                `<option value="${stage.stageId}">${stage.name}</option>`
+            stageSelect.innerHTML = availableStages.map(stage =>
+                `<option value="${stage.id}">${stage.name}</option>` // Use stage.id
             ).join('');
         }
     });

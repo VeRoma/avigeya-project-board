@@ -89,14 +89,14 @@ export async function handleSaveActiveTask() {
 export function handleShowAddTaskModal() {
     const appData = store.getAppData();
     modals.openAddTaskModal(store.getAllProjects(), store.getAllUsers(), appData.userRole, appData.userName);
-    uiUtils.updateFabButtonUI(true, handleSaveNewTaskClick);
+    uiUtils.updateFabButtonUI(true, handleSaveNewTaskClick, handleShowAddTaskModal); // Pass addHandler for consistency
 }
 
 export async function handleCreateTask(taskData) {
     const appData = store.getAppData();
-    const allProjects = store.getAppData().projects;
-    const projectForTask = store.getAllProjects().find(p => p.projectId === taskData.projectId);
-    const projectName = projectForTask ? projectForTask.projectName : '';
+    const allProjects = store.getAppData().projects; // This is the nested structure
+    const projectForTask = store.getAllProjects().find(p => String(p.id) === String(taskData.projectId)); // Use p.id
+    const projectName = projectForTask ? projectForTask.name : '';
 
     const allTasksForScope = (allProjects.find(p => p.name === projectName) || { tasks: [] }).tasks;
     const tasksInGroup = allTasksForScope.filter(t => t.status === taskData.status);
@@ -104,7 +104,18 @@ export async function handleCreateTask(taskData) {
     taskData.priority = maxPriority + 1;
     
     const tempTaskId = `temp_${Date.now()}`;
-    const optimisticTask = { ...taskData, taskId: tempTaskId, project: projectName, version: 0 };
+    const optimisticTask = { // Construct optimistic task with correct DTO structure
+        id: tempTaskId,
+        name: taskData.name,
+        priority: taskData.priority,
+        status: store.findStatusByName(taskData.status), // Convert status name to object
+        stage: store.getAppData().allStages.find(s => String(s.id) === String(taskData.stageId)), // Convert stageId to object
+        project: { id: taskData.projectId, name: projectName }, // Project as object
+        curator: taskData.curator, // Assuming taskData already has curator object
+        author: store.findUserById(taskData.creatorId), // Convert creatorId to author object
+        version: 0,
+        projectId: taskData.projectId // Keep projectId for consistency
+    };
     
     let targetProject = allProjects.find(p => p.name === optimisticTask.project);
     if (!targetProject) {
@@ -115,20 +126,20 @@ export async function handleCreateTask(taskData) {
     modals.closeAddTaskModal();
     
     const accordionStateBefore = uiUtils.getAccordionState();
-    render.renderProjects(allProjects, appData.userName, appData.userRole, accordionStateBefore, store.getStageFilters());
+    render.renderProjects(appData.projects, appData.userName, appData.userRole, accordionState, store.getStageFilters()); // Use appData.projects
     uiUtils.showMessage('Задача добавлена, идет сохранение...', 'info');
     
     try {
         const result = await api.addTask({ newTaskData: taskData, creatorName: appData.userName });
         if (result.status === 'success' && result.tasks && result.tasks.length > 0) {
             const finalTask = result.tasks[0];
-            const taskToUpdate = targetProject.tasks.find(t => t.taskId === tempTaskId);
+            const taskToUpdate = targetProject.tasks.find(t => t.id === tempTaskId); // Use t.id
             if (taskToUpdate) {
-                Object.assign(taskToUpdate, finalTask, { project: projectName });
+                Object.assign(taskToUpdate, finalTask); // finalTask is already a DTO
             }
             
             const accordionStateAfter = uiUtils.getAccordionState();
-            render.renderProjects(allProjects, appData.userName, appData.userRole, accordionStateAfter, store.getStageFilters());
+            render.renderProjects(appData.projects, appData.userName, appData.userRole, accordionStateAfter, store.getStageFilters()); // Use appData.projects
             uiUtils.showMessage('Задача успешно сохранена', 'success');
 
         } else {
@@ -245,44 +256,46 @@ export function handleDragDrop(groupName, updatedTaskIdsInGroup, userRole) {
 export function handleSaveNewTaskClick() {
     const appData = store.getAppData();
     
-    const taskName = document.getElementById('new-task-name')?.value;
-    const projectId = document.getElementById('new-task-project')?.value;
-    const stageId = document.getElementById('new-task-stage')?.value;
+    const taskName = document.getElementById('new-task-name')?.value; // Correct
+    const projectId = document.getElementById('new-task-project')?.value; // Correct
+    const stageId = document.getElementById('new-task-stage')?.value; // Correct
     const activeStatusElement = document.querySelector('#new-task-status-toggle .toggle-option.active');
     const statusName = activeStatusElement ? activeStatusElement.dataset.status : 'К выполнению';
 
     const isLimitedView = !['owner', 'admin'].includes(appData.userRole);
-    let responsibleNames = [];
+    let responsibleUsers = []; // Array of UserDto objects
     if (isLimitedView) {
-        responsibleNames = [appData.userName];
+        const currentUser = store.getAllUsers().find(u => u.name === appData.userName);
+        if (currentUser) responsibleUsers = [currentUser];
     } else {
         const responsibleCheckboxes = document.querySelectorAll('#add-task-modal .user-checkbox:checked');
-        responsibleNames = [...responsibleCheckboxes].map(cb => cb.value);
+        const responsibleIds = [...responsibleCheckboxes].map(cb => cb.value);
+        responsibleUsers = store.getAllUsers().filter(u => responsibleIds.includes(String(u.id)));
     }
 
     if (!taskName || !projectId || !stageId ) {
         return uiUtils.showMessage('Пожалуйста, заполните все поля: Наименование, Проект, и Этап.', 'error');
     }
 
-    const allUsers = store.getAllUsers();
-    const responsibleUsers = allUsers.filter(emp => responsibleNames.includes(emp.name));
-    const responsibleUserIds = responsibleUsers.map(emp => emp.userId);
-    
     const statuses = store.getAllStatuses();
-    const statusId = (statuses.find(s => s.name === statusName) || {}).statusId;
+    const statusObject = statuses.find(s => s.name === statusName);
 
-    const currentUser = allUsers.find(u => u.name === appData.userName);
-    const creatorId = currentUser ? currentUser.userId : null;
+    const allStages = store.getAppData().allStages;
+    const stageObject = allStages.find(s => String(s.id) === String(stageId));
+
+    const currentUser = store.getAllUsers().find(u => u.name === appData.userName);
+    const authorObject = currentUser || null;
+
+    const curatorObject = responsibleUsers.length > 0 ? responsibleUsers[0] : null;
 
     handleCreateTask({
         name: taskName,
         projectId: projectId,
-        status: statusName,
-        statusId: statusId,
-        stageId: stageId,
-        responsible: responsibleNames.join(', '),
-        creatorId: creatorId,
-        responsibleUserIds: responsibleUserIds
+        status: statusObject, // Pass full status object
+        stage: stageObject, // Pass full stage object
+        curator: curatorObject, // Pass full curator object
+        author: authorObject, // Pass full author object
+        members: responsibleUsers // Pass array of full member objects
     });
 }
 
@@ -299,7 +312,7 @@ export async function handleDeleteTask(taskId) {
         if (result.status === 'success') {
             const { project } = store.findTask(taskId);
             if (project) {
-                project.tasks = project.tasks.filter(t => t.taskId !== taskId);
+                project.tasks = project.tasks.filter(t => String(t.id) !== String(taskId));
             }
             
             const accordionState = uiUtils.getAccordionState();
