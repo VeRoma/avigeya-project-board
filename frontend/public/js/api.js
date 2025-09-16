@@ -1,238 +1,146 @@
+// Базовый URL вашего Java-бэкенда.
+// Если вы запускаете фронтенд и бэкенд на одной машине, 'http://localhost:8080' - то, что нужно.
+// При развертывании на сервере здесь будет реальный адрес вашего бэкенда.
+const API_BASE_URL = 'http://localhost:8080/api/v1';
+
+/**
+ * Отправляет унифицированный запрос на бэкенд и обрабатывает базовые ошибки.
+ * @param {string} endpoint - Путь к эндпоинту (например, '/app-data').
+ * @param {object} options - Параметры для fetch() (method, headers, body).
+ * @returns {Promise<any>} - Распарсенный JSON-ответ.
+ */
+async function fetchApi(endpoint, options = {}) {
+    try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers,
+            },
+            ...options,
+        });
+
+        if (!response.ok) {
+            // Попытаемся прочитать тело ошибки для более детальной информации
+            const errorData = await response.json().catch(() => ({
+                message: 'Server returned a non-JSON error response',
+                status: response.status
+            }));
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        // Если у ответа нет тела (например, статус 204 No Content), возвращаем success
+        if (response.status === 204) {
+            return { status: 'success' };
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error(`API call to ${endpoint} failed:`, error);
+        // Перебрасываем ошибку дальше, чтобы ее можно было обработать в UI
+        throw error;
+    }
+}
+
 /**
  * Загружает начальные данные для приложения.
- * @param {object} payload - Данные пользователя для верификации.
- * @returns {Promise<object>}
+ * @param {object} payload - Объект, содержащий либо `initData`, либо `debugUserId`.
  */
-export function loadAppData(payload) {
-    return fetch('/api/appdata', {
+export const getAppData = (payload) => {
+    // Эндпоинт на бэкенде, который принимает initData и возвращает все данные
+    return fetchApi(`/app-data`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    }).then(res => {
-        if (!res.ok) throw new Error('Ошибка при загрузке данных приложения');
-        return res.json();
+        body: JSON.stringify(payload),
     });
-}
+};
 
 /**
- * Обновляет существующую задачу на сервере.
- * @param {object} payload - Объект с данными задачи и именем изменившего.
- * @returns {Promise<object>}
+ * Сохраняет изменения в существующей задаче.
+ * @param {object} payload - Объект с данными задачи.
  */
-export function saveTask(payload) {
-    return fetch('/api/updatetask', {
+export const saveTask = (payload) => {
+    const { taskData } = payload;
+    // REST-подход: используем PUT для обновления существующего ресурса по его ID
+    return fetchApi(`/tasks/${taskData.taskId}`, {
+        method: 'PUT',
+        body: JSON.stringify(taskData),
+    });
+};
+
+/**
+ * Добавляет новую задачу.
+ * @param {object} payload - Объект с данными новой задачи.
+ */
+export const addTask = (payload) => {
+    // REST-подход: используем POST для создания нового ресурса
+    return fetchApi('/tasks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    }).then(res => {
-        if (!res.ok) throw new Error('Ошибка при сохранении задачи');
-        return res.json();
+        body: JSON.stringify(payload.newTaskData),
     });
-}
+};
 
 /**
- * Проверяет пользователя на сервере.
- * @param {object} user - Объект пользователя от Telegram.
- * @returns {Promise<object>}
+ * Удаляет задачу.
+ * @param {object} payload - Объект, содержащий taskId.
  */
-export function verifyUser(user) {
-    return fetch('/api/verifyuser', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user })
-    }).then(res => {
-        if (!res.ok) throw new Error('Ошибка верификации');
-        return res.json();
+export const deleteTask = (payload) => {
+    // REST-подход: используем DELETE для удаления ресурса
+    return fetchApi(`/tasks/${payload.taskId}`, {
+        method: 'DELETE',
     });
-}
+};
 
 /**
- * Отправляет запрос на регистрацию нового пользователя.
- * @param {string} name - Имя, которое ввел пользователь.
- * @param {string} userId - ID пользователя в Telegram.
- * @returns {Promise<object>}
+ * Обновляет приоритеты (порядок) и статусы задач.
+ * @param {object} payload - Объект, содержащий массив задач для обновления.
  */
-export function requestRegistration(name, userId) {
-    return fetch('/api/requestregistration', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, userId })
-    }).then(res => {
-        if (!res.ok) throw new Error('Ошибка отправки запроса на регистрацию');
-        return res.json();
+export const updatePriorities = (payload) => {
+    // Эндпоинт для массового обновления
+    return fetchApi('/tasks/reorder', {
+        method: 'PUT',
+        body: JSON.stringify(payload.tasks),
     });
-}
+};
 
 /**
- * Логирует действие на стороне клиента на сервере.
- * @param {string} message - Сообщение для лога.
- * @param {object} context - Дополнительный контекст.
+ * Загружает все связи (участники проектов, этапы проектов и т.д.).
  */
-export function logAction(message, context = {}) {
-    fetch('/api/log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            level: context.level || 'INFO',
-            message,
-            context
-        })
-    }).catch(error => console.error('Не удалось залогировать действие:', error));
-}
+export const fetchAllConnections = () => {
+    return fetchApi('/connections/all');
+};
 
 /**
- * Обновляет приоритеты для нескольких задач одним запросом.
- * @param {object} payload - Объект с массивом задач и именем изменившего.
- * @returns {Promise<object>}
+ * Обновляет участников проекта.
+ * @param {string} projectId - ID проекта.
+ * @param {object} payload - Объект с массивом ID участников.
  */
-export async function updatePriorities(payload) {
-
-    console.log('Updating priorities with payload:', payload);
-
-    // --- ИСПРАВЛЕНИЕ ЗДЕСЬ: Отправляем payload напрямую ---
-    const res = await fetch('/api/updatepriorities', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+export const updateProjectMembers = (projectId, payload) => {
+    return fetchApi(`/projects/${projectId}/members`, {
+        method: 'PUT',
+        body: JSON.stringify(payload.memberIds),
     });
-    if (!res.ok) throw new Error('Ошибка обновления приоритетов');
-    return await res.json();
-}
+};
 
 /**
- * Добавляет новую задачу на сервер.
- * @param {object} payload - Объект с данными новой задачи и именем создателя.
- * @returns {Promise<object>}
+ * Обновляет этапы проекта.
+ * @param {string} projectId - ID проекта.
+ * @param {object} payload - Объект с массивом ID этапов.
  */
-export function addTask(payload) {
-    return fetch('/api/addtask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    }).then(res => {
-        if (!res.ok) throw new Error('Ошибка добавления задачи');
-        return res.json();
+export const updateProjectStages = (projectId, payload) => {
+    return fetchApi(`/projects/${projectId}/stages`, {
+        method: 'PUT',
+        body: JSON.stringify(payload.stageIds),
     });
-}
-
-/**
- * Отправляет запрос на удаление (архивацию) задачи.
- * @param {object} payload - Объект с taskId и именем пользователя.
- * @returns {Promise<object>}
- */
-export function deleteTask(payload) {
-    return fetch('/api/deletetask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    }).then(res => {
-        if (!res.ok) throw new Error('Ошибка при удалении задачи');
-        return res.json();
-    });
-}
-
-/**
- * Запрашивает список ID участников для конкретного проекта.
- * @param {string} projectId ID проекта.
- * @returns {Promise<string[]>}
- */
-export function getProjectMembers(projectId) {
-    return fetch(`/api/project/${projectId}/members`)
-        .then(res => {
-            if (!res.ok) throw new Error('Ошибка при загрузке участников проекта');
-            return res.json();
-        });
-}
-
-/**
- * Обновляет список участников проекта.
- * @param {string} projectId ID проекта.
- * @param {object} payload Объект с массивом memberIds и modifierName.
- * @returns {Promise<object>}
- */
-export function updateProjectMembers(projectId, payload) {
-    return fetch(`/api/project/${projectId}/members`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    }).then(res => {
-        if (!res.ok) throw new Error('Ошибка при сохранении участников проекта');
-        return res.json();
-    });
-}
-
-/**
- * Запрашивает с сервера полный список всех этапов.
- * @returns {Promise<object[]>}
- */
-export function getAllStages() {
-    return fetch('/api/stages').then(res => {
-        if (!res.ok) throw new Error('Ошибка при загрузке списка этапов');
-        return res.json();
-    });
-}
-
-/**
- * Обновляет список активных этапов для проекта.
- * @param {string} projectId ID проекта.
- * @param {object} payload Объект с массивом stageIds.
- * @returns {Promise<object>}
- */
-export function updateProjectStages(projectId, payload) {
-    return fetch(`/api/project/${projectId}/stages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    }).then(res => {
-        if (!res.ok) throw new Error('Ошибка при сохранении этапов проекта');
-        return res.json();
-    });
-}
-
-/**
- * Запрашивает список ID активных этапов для конкретного проекта.
- * @param {string} projectId ID проекта.
- * @returns {Promise<string[]>}
- */
-export function getProjectStages(projectId) {
-    return fetch(`/api/project/${projectId}/stages`)
-        .then(res => {
-            if (!res.ok) throw new Error('Ошибка при загрузке активных этапов проекта');
-            return res.json();
-        });
-}
+};
 
 /**
  * Обновляет состав исполнителей и куратора для задачи.
  * @param {string} taskId ID задачи.
- * @param {object} payload Объект с curatorId, memberIds и modifierName.
+ * @param {object} payload Объект с curatorId и memberIds.
  * @returns {Promise<object>}
  */
-export function updateTaskMembers(taskId, payload) {
-    return fetch(`/api/task/${taskId}/members`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    }).then(res => {
-        if (!res.ok) {
-            // Попытаемся получить текст ошибки с сервера
-            return res.json().then(errorData => {
-                throw new Error(errorData.error || 'Ошибка при обновлении исполнителей');
-            });
-        }
-        return res.json();
+export const updateTaskMembers = (taskId, payload) => {
+    return fetchApi(`/tasks/${taskId}/members`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
     });
-}
-
-/**
- * Загружает в фоне все детальные данные (связи).
- * @returns {Promise<object>}
- */
-export function fetchAllConnections() {
-    return fetch('/api/details/all-connections')
-        .then(res => {
-            if (!res.ok) throw new Error('Ошибка фоновой загрузки данных');
-            return res.json();
-        });
-}
-
+};

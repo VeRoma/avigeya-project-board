@@ -1,4 +1,3 @@
-import * as api from './api.js';
 import * as render from './ui/render.js';
 import * as modals from './ui/modals.js';
 import * as uiUtils from './ui/utils.js';
@@ -6,8 +5,7 @@ import * as auth from './auth.js';
 import * as handlers from './handlers.js';
 import * as store from './store.js';
 
-document.addEventListener('DOMContentLoaded', () => {
-    const tg = window.Telegram.WebApp;
+function initializeApp() {
     const mainContainer = document.getElementById('main-content');
     
     // ОБРАБОТЧИК КЛИКОВ ДЛЯ ОСНОВНОГО КОНТЕНТА (ЗАДАЧИ, ПРОЕКТЫ И Т.Д.)
@@ -21,30 +19,29 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // --- Обработчик кнопки "Редактировать" ---
-        const editBtn = event.target.closest('.edit-btn');
-        if (editBtn) {
+        // --- Обработчик кнопки "Редактировать" внутри карточки ---
+        if (event.target.id === 'edit-task-btn') {
             event.stopPropagation();
-            const detailsContainer = editBtn.closest('.task-details');
-            const currentlyEditing = document.querySelector('.task-details.edit-mode');
-            if (currentlyEditing && currentlyEditing !== detailsContainer) {
-                await handlers.handleSaveActiveTask();
+            const detailsContainer = event.target.closest('.task-details');
+            if (detailsContainer) {
+                const backButtonHandler = () => {
+                    uiUtils.exitEditMode(detailsContainer);
+                    const { task } = store.findTask(detailsContainer.id.replace('task-details-', ''));
+                    render.renderTaskDetails(detailsContainer, task, store.getAllUsers(), store.getAppData().userRole);
+                    uiUtils.updateFabButtonUI(false, handlers.handleSaveActiveTask, handlers.handleShowAddTaskModal);
+                };
+                uiUtils.enterEditMode(detailsContainer, backButtonHandler);
+                uiUtils.updateFabButtonUI(true, handlers.handleSaveActiveTask, handlers.handleShowAddTaskModal);
             }
-            const backButtonHandler = () => {
-                uiUtils.exitEditMode(detailsContainer);
-                uiUtils.updateFabButtonUI(false, handlers.handleSaveActiveTask, handlers.handleShowAddTaskModal);
-            };
-            uiUtils.enterEditMode(detailsContainer, backButtonHandler);
-            uiUtils.updateFabButtonUI(true, handlers.handleSaveActiveTask, handlers.handleShowAddTaskModal);
             return;
         }
 
         // --- Обработчик полей, вызывающих модальные окна в режиме редактирования ---
-        const modalTrigger = event.target.closest('.modal-trigger-field');
-        if (modalTrigger) {
+        const editModeContainer = event.target.closest('.task-details.edit-mode');
+        if (editModeContainer) {
             event.stopPropagation();
-            const modalType = modalTrigger.dataset.modalType;
-            const activeTaskDetailsElement = modalTrigger.closest('.task-details');
+            const modalType = event.target.dataset.modalType;
+            const activeTaskDetailsElement = editModeContainer;
             if (modalType === 'status') {
                 const taskId = activeTaskDetailsElement.closest('[data-task-id]').dataset.taskId;
                 modals.openStatusModal(taskId);
@@ -53,6 +50,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 modals.openUserModal(activeTaskDetailsElement, store.getAllUsers(), appData.userRole);
             } else if (modalType === 'project') {
                 modals.openProjectModal(activeTaskDetailsElement, store.getAllProjects());
+            } else if (modalType === 'stage') {
+                modals.openStageModal(activeTaskDetailsElement);
             }
             return;
         }
@@ -60,17 +59,25 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- Обработчик клика по заголовку ЗАДАЧИ ---
         const taskHeader = event.target.closest('.task-header');
         if (taskHeader) {
+            // Игнорируем клик, если он был по области смены статуса
             if (event.target.closest('.status-action-area')) return;
+            
             const detailsContainer = taskHeader.nextElementSibling;
+            // Закрываем все остальные открытые задачи
             const currentlyOpen = document.querySelector('.task-details.expanded');
             if (currentlyOpen && currentlyOpen !== detailsContainer) {
                 currentlyOpen.classList.remove('expanded');
                 setTimeout(() => { if (currentlyOpen) currentlyOpen.innerHTML = ''; }, 300);
             }
+
+            // Если контент пуст, рендерим его
             if (!detailsContainer.innerHTML) {
+                const taskId = taskHeader.closest('.task').dataset.taskId;
+                const { task } = store.findTask(taskId);
                 const appData = store.getAppData();
-                render.renderTaskDetails(detailsContainer, appData.userRole);
+                render.renderTaskDetails(detailsContainer, task, appData.allUsers, appData.userRole);
             }
+
             detailsContainer.classList.toggle('expanded');
             if (!detailsContainer.classList.contains('expanded')) {
                 setTimeout(() => { if (detailsContainer) detailsContainer.innerHTML = ''; }, 300);
@@ -114,21 +121,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const viewToolbar = document.getElementById('view-toolbar');
-viewToolbar.addEventListener('click', (event) => {
-    const targetButton = event.target.closest('.view-btn');
-    if (!targetButton) return;
+    viewToolbar.addEventListener('click', (event) => {
+        const targetButton = event.target.closest('.view-btn');
+        if (!targetButton) return;
 
-    if (targetButton.id === 'view-btn-stages-filter') {
-        modals.openStagesFilterModal(rerenderApp);
-        return;
-    }
+        if (targetButton.id === 'view-btn-stages-filter') {
+            modals.openStagesFilterModal(rerenderApp);
+            return;
+        }
 
-    if (targetButton.closest('.view-modes')) {
-        viewToolbar.querySelectorAll('.view-modes .view-btn').forEach(btn => btn.classList.remove('active'));
-        targetButton.classList.add('active');
-        rerenderApp();
-    }
-});
+        if (targetButton.closest('.view-modes')) {
+            viewToolbar.querySelectorAll('.view-modes .view-btn').forEach(btn => btn.classList.remove('active'));
+            targetButton.classList.add('active');
+            rerenderApp();
+        }
+    });
 
     // --- ЛОГИКА DRAG AND DROP ---
     let draggedElement = null;
@@ -195,24 +202,6 @@ viewToolbar.addEventListener('click', (event) => {
         uiUtils.showFab();
     });
 
-    // --- ЛОГИКА РЕГИСТРАЦИИ И ЗАПУСКА ПРИЛОЖЕНИЯ ---
-    document.getElementById('register-btn').addEventListener('click', async () => {
-        const nameInput = document.getElementById('name-input');
-        const name = nameInput.value.trim();
-        if (!name) return;
-        try {
-            const result = await api.requestRegistration(name, tg.initDataUnsafe.user.id);
-            if (result.status === 'request_sent') {
-                document.getElementById('registration-modal').classList.remove('active');
-                tg.close();
-            } else {
-                throw new Error(result.error || 'Неизвестная ошибка');
-            }
-        } catch(error) {
-            console.error("Ошибка регистрации:", error);
-        }
-    });
-
     function rerenderApp() {
     const appData = store.getAppData();
     const activeFilters = store.getActiveStageFilters();
@@ -256,26 +245,28 @@ viewToolbar.addEventListener('click', (event) => {
     }
 }
 
-    async function startApp() {
-        const success = await auth.initializeApp();
-        if (success) {
-            modals.setupModals(handlers.handleStatusUpdate);
-            uiUtils.updateFabButtonUI(false, handlers.handleShowAddTaskModal, handlers.handleShowAddTaskModal);
-
-            document.getElementById('greeting-container').style.display = 'none';
-            const toolbar = document.getElementById('view-toolbar');
-            toolbar.classList.remove('hidden');
-            toolbar.classList.add('flex');
-
-            const userRole = store.getAppData().userRole;
-            const allowedRolesForMyTasks = ['admin', 'owner', 'client'];
-            if (allowedRolesForMyTasks.includes(userRole)) {
-                document.getElementById('view-btn-my-tasks').classList.remove('hidden');
-            }
-            store.selectAllStagesByDefault(); // Выбираем все этапы по умолчанию
-            rerenderApp(); // Сразу отрисовываем контент с учетом фильтров
+    // --- Инициализация приложения ---
+    auth.initializeApp().then(success => {
+        if (!success) {
+            console.error("Application initialization failed. Event listeners will not be attached.");
+            return;
         }
-    }
 
-    startApp();
-});
+        modals.setupModals(handlers.handleStatusUpdate);
+        uiUtils.updateFabButtonUI(false, handlers.handleShowAddTaskModal, handlers.handleShowAddTaskModal);
+
+        const toolbar = document.getElementById('view-toolbar');
+        toolbar.classList.remove('hidden');
+        toolbar.classList.add('flex');
+
+        const userRole = store.getAppData().userRole;
+        const allowedRolesForMyTasks = ['admin', 'owner', 'client'];
+        if (allowedRolesForMyTasks.includes(userRole)) {
+            document.getElementById('view-btn-my-tasks').classList.remove('hidden');
+        }
+        store.selectAllStagesByDefault(); // Выбираем все этапы по умолчанию
+        rerenderApp(); // Сразу отрисовываем контент с учетом фильтров
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initializeApp);

@@ -4,91 +4,68 @@ import * as uiUtils from './ui/utils.js';
 import * as store from './store.js';
 import * as handlers from './handlers.js';
 
-function getDebugUserId() {
+/**
+ * Получает ID пользователя для отладки из URL (например, ?debug_user_id=1).
+ * @returns {string|null}
+ */
+function getDebugPayload() {
     const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('debug_user_id');
-}
-
-export async function initializeApp() {
-    api.logAction('App initializing');
-    const tg = window.Telegram.WebApp;
-    let user;
-    const debugUserId = getDebugUserId();
-
-    if (debugUserId) {
-        user = { id: debugUserId, first_name: 'Debug', username: 'debuguser' };
-    } else {
-        user = tg.initDataUnsafe?.user;
+    const userId = urlParams.get('debug_user_id');
+    if (userId) {
+        // Возвращаем объект, который будет отправлен на бэкенд
+        return { debugUserId: userId };
     }
-
-    if (!user || !user.id) {
-        uiUtils.showAccessDeniedScreen();
-        return false;
-    }
-
-    window.currentUserId = user.id;
-
-    try {
-        uiUtils.showLoading();
-        const verification = await api.verifyUser(user);
-
-        if (verification.status === 'authorized') {
-            uiUtils.setupUserInfo(verification.name);
-            const data = await api.loadAppData({ user });
-            
-            if (data && data.projects) {
-                console.log('[AUTH.JS LOG] Loaded app data:', data);
-                // Сохраняем все данные в хранилище
-                store.setAppData(data);
-                
-                // --- НОВЫЙ КОД ДЛЯ ФИЛЬТРОВ ---
-                    // 1. Получаем сохраненные фильтры с сервера
-                    const stageFilters = data.activeProjectStages || {};
-                    
-                    // 2. Устанавливаем фильтр по умолчанию ('2') для проектов, у которых нет сохраненных фильтров
-                    if (data.allProjects) {
-                        data.allProjects.forEach(p => {
-                            if (!stageFilters[p.projectId]) {
-                                stageFilters[p.projectId] = ['2'];
-                            }
-                        });
-                    }
-                    
-                    // 3. Сохраняем итоговые фильтры в хранилище
-                    store.setStageFilters(stageFilters);
-                    // --- КОНЕЦ НОВОГО КОДА ---
-                    
-                    // 4. Рендерим проекты, передавая в функцию фильтры из хранилища
-                    render.renderProjects(data.projects, data.userName, data.userRole, {}, store.getStageFilters());
-                    
-                    handlers.handleBackgroundDataFetch();
-                    
-
-                return true; // Возвращаем true в случае успеха
-            } else {
-                render.renderProjects([], verification.name, verification.role);
-            }
-        } else if (verification.status === 'unregistered') {
-            uiUtils.showRegistrationModal();
-        } else {
-            throw new Error(verification.error || 'Неизвестный статус верификации');
-        }
-    } catch (error) {
-        uiUtils.showDataLoadError(error);
-    } finally {
-        uiUtils.hideLoading();
-    }
-    return false;
+    // В рабочем режиме возвращаем initData от Telegram
+    return { initData: window.Telegram.WebApp.initData };
 }
 
 /**
- * Загружает в фоне все детальные данные (связи).
- * @returns {Promise<object>}
+ * Основная функция инициализации приложения.
+ * Запрашивает данные с бэкенда, используя initData от Telegram или debug_user_id.
  */
-export function fetchAllConnections() {
-    return fetch('/api/details/all-connections')
-        .then(res => {
-            if (!res.ok) throw new Error('Ошибка фоновой загрузки данных');
-            return res.json();
-        });
+export async function initializeApp() {
+    const tg = window.Telegram.WebApp;
+
+    try {
+        tg.ready();
+        uiUtils.showLoading();
+
+        // 1. Получаем initData от Telegram или ID для отладки
+        const payload = getDebugPayload();
+
+        // 2. Отправляем данные на наш Java-бэкенд для получения всех данных
+        const appData = await api.getAppData(payload);
+
+        // 3. Сохраняем полученные данные в локальное хранилище (store)
+        store.setAppData(appData);
+
+        // 4. Настраиваем UI с полученными данными
+        uiUtils.setupUserInfo(appData.userName);
+        uiUtils.hideLoading();
+        document.getElementById('app').classList.remove('hidden');
+
+        // 5. Отрисовываем проекты
+        const accordionState = {}; // Начальное состояние - все свернуто
+        render.renderProjects(appData.projects, appData.userName, appData.userRole, accordionState, store.getStageFilters());
+
+        // 6. Запускаем фоновую загрузку дополнительных данных (связей)
+        handlers.handleBackgroundDataFetch();
+
+        // 7. Показываем основную кнопку Telegram
+        tg.MainButton.setText('Новая задача');
+        tg.MainButton.show();
+
+        return true; // Сигнализируем, что инициализация прошла успешно
+    } catch (error) {
+        console.error('Critical initialization error:', error);
+        if (error.message.includes('403') || error.message.toLowerCase().includes('access denied')) {
+            uiUtils.showAccessDeniedScreen();
+        } else {
+            uiUtils.showDataLoadError(error);
+        }
+        tg.MainButton.hide();
+        uiUtils.hideFab();
+        uiUtils.hideLoading();
+        return false; // Инициализация не удалась
+    }
 }

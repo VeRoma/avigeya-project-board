@@ -3,7 +3,8 @@
   "version": "2.0.0",
   "description": "Frontend for Avigeya Project Board",
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "start": "http-server ./public -p 8000 --cors"
   },
   "keywords": [],
   "author": "",
@@ -12,6 +13,7 @@
     "@babel/core": "^7.28.0",
     "@babel/preset-env": "^7.28.0",
     "babel-jest": "^30.0.5",
+    "http-server": "^14.1.1",
     "jest": "^30.0.5",
     "jest-environment-jsdom": "^30.0.5"
   }

@@ -67,7 +67,7 @@ public class InitialDataService {
             // 1. Находим проекты, в которых пользователь является участником
             userProjects = projectMemberRepository.findByUser(currentUser).stream()
                     .map(ProjectMember::getProject)
-                    .collect(Collectors.toList());
+                    .toList();
 
             // 2. Находим задачи, где пользователь является автором или куратором
             userTasksSet.addAll(taskRepository.findByCuratorOrAuthor(currentUser, currentUser));
@@ -75,19 +75,19 @@ public class InitialDataService {
             // 3. Находим задачи, в которых пользователь является участником
             List<Task> memberTasks = taskMemberRepository.findByUser(currentUser).stream()
                     .map(TaskMember::getTask)
-                    .collect(Collectors.toList());
+                    .toList();
             userTasksSet.addAll(memberTasks);
         }
 
         // Фильтруем итоговый список задач, убирая "Выполненные"
         List<Task> actualTasks = userTasksSet.stream()
                 .filter(task -> task.getStatus() != null && !task.getStatus().getName().equals("Выполнено"))
-                .collect(Collectors.toList());
+                .toList();
 
         // Конвертируем отфильтрованные задачи в DTO
         List<TaskDto> taskDtos = actualTasks.stream()
                 .map(this::convertToTaskDto)
-                .collect(Collectors.toList());
+                .toList();
 
         // Собираем финальный объект для ответа
         InitialDataDto initialData = new InitialDataDto();
@@ -113,21 +113,21 @@ public class InitialDataService {
 
         if (task.getStatus() != null) {
             StatusDto statusDto = new StatusDto();
-            statusDto.setId(task.getStatus().getId());
+            statusDto.setStatusId(task.getStatus().getId());
             statusDto.setName(task.getStatus().getName());
             dto.setStatus(statusDto);
         }
 
         if (task.getCurator() != null) {
             UserDto curatorDto = new UserDto();
-            curatorDto.setId(task.getCurator().getId());
+            curatorDto.setUserId(task.getCurator().getId());
             curatorDto.setName(task.getCurator().getName());
             dto.setCurator(curatorDto);
         }
 
         if (task.getAuthor() != null) {
             UserDto authorDto = new UserDto();
-            authorDto.setId(task.getAuthor().getId());
+            authorDto.setUserId(task.getAuthor().getId());
             authorDto.setName(task.getAuthor().getName());
             dto.setAuthor(authorDto);
         }
