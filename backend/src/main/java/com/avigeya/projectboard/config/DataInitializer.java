@@ -34,7 +34,8 @@ public class DataInitializer implements CommandLineRunner {
     private final TaskMemberRepository taskMemberRepository;
 
     @Autowired
-    public DataInitializer(UserRepository u, ProjectRepository p, TaskRepository t, StatusRepository s, StageRepository st, ProjectMemberRepository pm, TaskMemberRepository tm) {
+    public DataInitializer(UserRepository u, ProjectRepository p, TaskRepository t, StatusRepository s,
+            StageRepository st, ProjectMemberRepository pm, TaskMemberRepository tm) {
         this.userRepository = u;
         this.projectRepository = p;
         this.taskRepository = t;
@@ -68,7 +69,7 @@ public class DataInitializer implements CommandLineRunner {
 
     private void loadUsers() throws Exception {
         try (InputStream is = getClass().getClassLoader().getResourceAsStream("AvigeyaProjectDataBase - Users.csv");
-             BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
             String line;
             reader.readLine(); // Пропускаем заголовок
             while ((line = reader.readLine()) != null) {
@@ -84,7 +85,8 @@ public class DataInitializer implements CommandLineRunner {
                         try {
                             user.setTgUserId(Long.parseLong(columns[3]));
                         } catch (NumberFormatException e) {
-                            System.out.println("ПРЕДУПРЕЖДЕНИЕ: Не удалось прочитать tg_user_id '" + columns[3] + "' для пользователя '" + columns[1] + "'.");
+                            System.out.println("ПРЕДУПРЕЖДЕНИЕ: Не удалось прочитать tg_user_id '" + columns[3]
+                                    + "' для пользователя '" + columns[1] + "'.");
                         }
                     }
 
@@ -102,7 +104,7 @@ public class DataInitializer implements CommandLineRunner {
 
     private void loadProjects() throws Exception {
         try (InputStream is = getClass().getClassLoader().getResourceAsStream("AvigeyaProjectDataBase - Projects.csv");
-             BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
             String line;
             reader.readLine();
             while ((line = reader.readLine()) != null) {
@@ -123,7 +125,7 @@ public class DataInitializer implements CommandLineRunner {
 
     private void loadStatuses() throws Exception {
         try (InputStream is = getClass().getClassLoader().getResourceAsStream("AvigeyaProjectDataBase - Statuses.csv");
-             BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
             String line;
             reader.readLine();
             while ((line = reader.readLine()) != null) {
@@ -131,6 +133,20 @@ public class DataInitializer implements CommandLineRunner {
                 if (columns.length > 1) {
                     Status status = new Status();
                     status.setName(columns[1]);
+
+                    // --- ИСПРАВЛЕНИЕ: Добавляем загрузку icon и order ---
+                    // Предполагается, что CSV имеет колонки: id, name, icon, order
+                    if (columns.length > 2 && !columns[2].isEmpty()) {
+                        status.setIcon(columns[2]);
+                    }
+                    if (columns.length > 3 && !columns[3].isEmpty()) {
+                        try {
+                            status.setOrder(Integer.parseInt(columns[3]));
+                        } catch (NumberFormatException e) {
+                            System.out.println("ПРЕДУПРЕЖДЕНИЕ: Не удалось прочитать 'order' " + columns[3]
+                                    + " для статуса '" + columns[1] + "'.");
+                        }
+                    }
 
                     Status savedStatus = statusRepository.save(status);
                     long oldId = Long.parseLong(columns[0]);
@@ -142,7 +158,7 @@ public class DataInitializer implements CommandLineRunner {
 
     private void loadStages() throws Exception {
         try (InputStream is = getClass().getClassLoader().getResourceAsStream("AvigeyaProjectDataBase - Stages.csv");
-             BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
             String line;
             reader.readLine();
             while ((line = reader.readLine()) != null) {
@@ -162,7 +178,7 @@ public class DataInitializer implements CommandLineRunner {
     private void loadTasks() throws Exception {
         int lineNumber = 1;
         try (InputStream is = getClass().getClassLoader().getResourceAsStream("AvigeyaProjectDataBase - Tasks.csv");
-             BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
 
             String line;
             reader.readLine();
@@ -170,37 +186,47 @@ public class DataInitializer implements CommandLineRunner {
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
                 String[] columns = line.split(",");
-                if (columns.length < 8) continue;
+                if (columns.length < 8)
+                    continue;
 
                 try {
                     Task task = new Task();
                     task.setName(columns[1]);
 
-                    if (!columns[2].isEmpty()) task.setStage(stageMap.get(Long.parseLong(columns[2])));
-                    if (!columns[3].isEmpty()) task.setProject(projectMap.get(Long.parseLong(columns[3])));
-                    if (!columns[4].isEmpty()) task.setCurator(userMap.get(Long.parseLong(columns[4])));
-                    if (!columns[5].isEmpty()) task.setStatus(statusMap.get(Long.parseLong(columns[5])));
-                    if (!columns[7].isEmpty()) task.setAuthor(userMap.get(Long.parseLong(columns[7])));
-                    if (!columns[6].isEmpty()) task.setPriority(Integer.parseInt(columns[6]));
+                    if (!columns[2].isEmpty())
+                        task.setStage(stageMap.get(Long.parseLong(columns[2])));
+                    if (!columns[3].isEmpty())
+                        task.setProject(projectMap.get(Long.parseLong(columns[3])));
+                    if (!columns[4].isEmpty())
+                        task.setCurator(userMap.get(Long.parseLong(columns[4])));
+                    if (!columns[5].isEmpty())
+                        task.setStatus(statusMap.get(Long.parseLong(columns[5])));
+                    if (!columns[7].isEmpty())
+                        task.setAuthor(userMap.get(Long.parseLong(columns[7])));
+                    if (!columns[6].isEmpty())
+                        task.setPriority(Integer.parseInt(columns[6]));
 
                     if (task.getProject() != null && task.getCurator() != null && task.getAuthor() != null) {
                         Task savedTask = taskRepository.save(task);
                         long oldId = Long.parseLong(columns[0]);
                         taskMap.put(oldId, savedTask);
                     } else {
-                        System.out.println("ПРЕДУПРЕЖДЕНИЕ: Пропущена задача '" + task.getName() + "' (строка " + lineNumber + ") из-за ненайденной связи.");
+                        System.out.println("ПРЕДУПРЕЖДЕНИЕ: Пропущена задача '" + task.getName() + "' (строка "
+                                + lineNumber + ") из-за ненайденной связи.");
                     }
 
                 } catch (NumberFormatException e) {
-                    System.out.println("ОШИБКА: Не удалось прочитать число в строке " + lineNumber + " в Tasks.csv. Строка пропущена.");
+                    System.out.println("ОШИБКА: Не удалось прочитать число в строке " + lineNumber
+                            + " в Tasks.csv. Строка пропущена.");
                 }
             }
         }
     }
 
     private void loadProjectMembers() throws Exception {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream("AvigeyaProjectDataBase - ProjectMembers.csv");
-             BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+        try (InputStream is = getClass().getClassLoader()
+                .getResourceAsStream("AvigeyaProjectDataBase - ProjectMembers.csv");
+                BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
             String line;
             reader.readLine();
             while ((line = reader.readLine()) != null) {
@@ -214,15 +240,17 @@ public class DataInitializer implements CommandLineRunner {
                         if (member.getProject() != null && member.getUser() != null) {
                             projectMemberRepository.save(member);
                         }
-                    } catch (NumberFormatException e) { /* пропускаем */ }
+                    } catch (NumberFormatException e) {
+                        /* пропускаем */ }
                 }
             }
         }
     }
 
     private void loadTaskMembers() throws Exception {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream("AvigeyaProjectDataBase - TaskMembers.csv");
-             BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+        try (InputStream is = getClass().getClassLoader()
+                .getResourceAsStream("AvigeyaProjectDataBase - TaskMembers.csv");
+                BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
             String line;
             reader.readLine();
             while ((line = reader.readLine()) != null) {
@@ -241,7 +269,8 @@ public class DataInitializer implements CommandLineRunner {
                             member.setUser(user);
                             taskMemberRepository.save(member);
                         }
-                    } catch (NumberFormatException e) { /* пропускаем */ }
+                    } catch (NumberFormatException e) {
+                        /* пропускаем */ }
                 }
             }
         }

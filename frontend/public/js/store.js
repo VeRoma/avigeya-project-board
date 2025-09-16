@@ -98,7 +98,7 @@ export function getAllStatuses() {
 export function findTask(taskId) {
     if (!_appData.projects) return { task: null, project: null };
     for (const project of _appData.projects) {
-        const task = project.tasks.find(t => t.taskId == taskId);
+        const task = project.tasks.find(t => String(t.id) === String(taskId));
         if (task) return { task, project };
     }
     return { task: null, project: null };
@@ -119,6 +119,18 @@ export function findUserById(userId) {
 export function findStatusByName(statusName) {
     if (!_allStatuses) return null;
     return _allStatuses.find(s => s.name === statusName);
+}
+
+/**
+ * Находит имя проекта по ID.
+ * @param {number|string} projectId - ID проекта.
+ * @returns {string} Имя проекта или строка-заглушка.
+ */
+export function getProjectNameById(projectId) {
+    if (!projectId) return 'Без проекта';
+    if (!_allProjects) return 'Неизвестный проект';
+    const project = _allProjects.find(p => String(p.id) === String(projectId));
+    return project ? project.name : 'Неизвестный проект';
 }
 
 

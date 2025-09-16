@@ -42,14 +42,17 @@ export async function initializeApp() {
         console.log('[AUTH] > Получены данные с сервера (appData):', appData);
         // ---------------------------------------------
 
-        // --- КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Распределяем задачи по проектам ---
+        // --- START: KEY CORRECTION - Distribute tasks into projects ---
         // Бэкенд возвращает проекты и задачи раздельно. Соберем их вместе.
         if (appData && appData.projects && appData.tasks) {
             // 1. Создаем карту для быстрого доступа к проектам по ID
-            const projectMap = new Map(appData.projects.map(p => [p.projectId, p]));
+            const projectMap = new Map(appData.projects.map(p => [p.id, p]));
             // 2. Инициализируем у каждого проекта пустой массив задач
-            projectMap.forEach(p => { p.tasks = []; });
-            // 3. Распределяем задачи по их проектам
+            projectMap.forEach(p => {
+                p.tasks = [];
+            });
+
+            // 3. Distribute each task into its corresponding project's tasks array.
             for (const task of appData.tasks) {
                 const project = projectMap.get(task.projectId);
                 if (project) {
@@ -57,6 +60,7 @@ export async function initializeApp() {
                 }
             }
         }
+        // --- END: KEY CORRECTION ---
 
         // 3. Сохраняем полученные данные в локальное хранилище (store)
         store.setAppData(appData);

@@ -16,4 +16,7 @@ public class Stage {
 
     @Column(nullable = false, unique = true)
     private String name;
+
+    @Column(columnDefinition = "TEXT") // Используем TEXT для длинных описаний
+    private String description;
 }

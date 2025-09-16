@@ -14,13 +14,16 @@ public class ProjectMember {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id")
     private Project project;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;
 
-    // project_role_id и is_active пока пропустим для простоты
+    @Column(name = "is_active")
+    private boolean isActive;
+
+    // project_role_id пока не используется, так как сущность ProjectRole не определена
 }

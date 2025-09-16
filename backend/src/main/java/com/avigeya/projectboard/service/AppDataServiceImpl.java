@@ -59,6 +59,7 @@ public class AppDataServiceImpl implements AppDataService {
         } else {
             userProjects = projectMemberRepository.findByUser(currentUser).stream()
                     .map(ProjectMember::getProject)
+                    .distinct() // <-- КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Убираем дубликаты проектов
                     .toList();
         }
         List<ProjectDto> projectDtos = userProjects.stream()

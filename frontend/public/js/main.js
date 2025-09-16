@@ -10,9 +10,13 @@ function initializeApp() {
     
     // ОБРАБОТЧИК КЛИКОВ ДЛЯ ОСНОВНОГО КОНТЕНТА (ЗАДАЧИ, ПРОЕКТЫ И Т.Д.)
     mainContainer.addEventListener('click', async (event) => {
+        // --- ОТЛАДОЧНЫЙ ЛОГ: Регистрируем каждый клик ---
+        console.log('[CLICK HANDLER] > Click detected on:', event.target);
+
         // --- Обработчик клика по иконке статуса в карточке ---
         const statusActionArea = event.target.closest('.status-action-area');
         if (statusActionArea) {
+            console.log('[CLICK HANDLER] > Matched: Status Action Area');
             event.stopPropagation();
             const taskCard = statusActionArea.closest('[data-task-id]');
             modals.openStatusModal(taskCard.dataset.taskId);
@@ -21,6 +25,7 @@ function initializeApp() {
 
         // --- Обработчик кнопки "Редактировать" внутри карточки ---
         if (event.target.id === 'edit-task-btn') {
+            console.log('[CLICK HANDLER] > Matched: Edit Task Button');
             event.stopPropagation();
             const detailsContainer = event.target.closest('.task-details');
             if (detailsContainer) {
@@ -39,6 +44,7 @@ function initializeApp() {
         // --- Обработчик полей, вызывающих модальные окна в режиме редактирования ---
         const editModeContainer = event.target.closest('.task-details.edit-mode');
         if (editModeContainer) {
+            console.log('[CLICK HANDLER] > Matched: Field inside Edit Mode');
             event.stopPropagation();
             const modalType = event.target.dataset.modalType;
             const activeTaskDetailsElement = editModeContainer;
@@ -59,8 +65,10 @@ function initializeApp() {
         // --- Обработчик клика по заголовку ЗАДАЧИ ---
         const taskHeader = event.target.closest('.task-header');
         if (taskHeader) {
+            console.log('[CLICK HANDLER] > Matched: Task Header');
             // Игнорируем клик, если он был по области смены статуса
-            if (event.target.closest('.status-action-area')) return;
+            if (event.target.closest('.status-action-area'))
+                return console.log('[CLICK HANDLER] > Ignored: Click was on status area.');
             
             const detailsContainer = taskHeader.nextElementSibling;
             // Закрываем все остальные открытые задачи
@@ -72,13 +80,21 @@ function initializeApp() {
 
             // Если контент пуст, рендерим его
             if (!detailsContainer.innerHTML) {
-                const taskId = taskHeader.closest('.task').dataset.taskId;
+                console.log('[CLICK HANDLER] > Task details are empty, rendering...');
+                // --- ИСПРАВЛЕНИЕ: Ищем родителя с классом .task-container, а не .task ---
+                const taskContainer = taskHeader.closest('.task-container');
+                if (!taskContainer) {
+                    console.error('[CLICK HANDLER] > CRITICAL: Could not find parent .task-container for the clicked header. This is likely the cause of the issue.');
+                    return;
+                }
+                const taskId = taskContainer.dataset.taskId;
                 const { task } = store.findTask(taskId);
                 const appData = store.getAppData();
                 render.renderTaskDetails(detailsContainer, task, appData.allUsers, appData.userRole);
             }
 
             detailsContainer.classList.toggle('expanded');
+            console.log(`[CLICK HANDLER] > Toggled .expanded on task details. Is now expanded: ${detailsContainer.classList.contains('expanded')}`);
             if (!detailsContainer.classList.contains('expanded')) {
                 setTimeout(() => { if (detailsContainer) detailsContainer.innerHTML = ''; }, 300);
             }
@@ -88,12 +104,14 @@ function initializeApp() {
         // --- Обработчик кнопок управления проектом ---
         const manageMembersBtn = event.target.closest('.manage-members-btn');
         if (manageMembersBtn) {
+            console.log('[CLICK HANDLER] > Matched: Manage Members Button');
             event.stopPropagation();
             handlers.handleManageMembers(manageMembersBtn.dataset.projectId, manageMembersBtn.dataset.projectName);
             return;
         }
         const manageStagesBtn = event.target.closest('.manage-stages-btn');
         if (manageStagesBtn) {
+            console.log('[CLICK HANDLER] > Matched: Manage Stages Button');
             event.stopPropagation();
             handlers.handleManageStages(manageStagesBtn.dataset.projectId, manageStagesBtn.dataset.projectName);
             return;
@@ -102,22 +120,34 @@ function initializeApp() {
         // --- Обработчик сворачивания/разворачивания проекта ---
         const projectHeader = event.target.closest('.project-header');
         if (projectHeader) {
+            console.log('[CLICK HANDLER] > Matched: Project Header');
             const projectElement = projectHeader.closest('.project-card');
-            if (!projectElement) return;
+            if (!projectElement) {
+                console.error('[CLICK HANDLER] > Could not find parent .project-card for the clicked header.');
+                return;
+            }
             const projectBody = projectElement.querySelector('.project-content');
-            if (!projectBody) return;
+            if (!projectBody) {
+                console.error('[CLICK HANDLER] > Could not find .project-content within the card.');
+                return;
+            }
             projectBody.classList.toggle('expanded');
+            console.log(`[CLICK HANDLER] > Toggled .expanded on project content. Is now expanded: ${projectBody.classList.contains('expanded')}`);
             return;
         }
 
         // --- Обработчик кнопки удаления задачи ---
         const deleteBtn = event.target.closest('.delete-btn');
         if (deleteBtn) {
+            console.log('[CLICK HANDLER] > Matched: Delete Task Button');
             event.stopPropagation();
             const taskCard = deleteBtn.closest('[data-task-id]');
             handlers.handleDeleteTask(taskCard.dataset.taskId);
             return;
         }
+
+        // --- ОТЛАДОЧНЫЙ ЛОГ: Если ни один обработчик не сработал ---
+        console.log('[CLICK HANDLER] > No specific handler matched for this click.');
     });
 
     const viewToolbar = document.getElementById('view-toolbar');
@@ -210,31 +240,37 @@ function initializeApp() {
     const activeModeBtn = document.querySelector('.view-modes .view-btn.active');
     if (!activeModeBtn) return;
 
-    let baseTasks = [];
+    // 1. Get a flat list of ALL tasks from all projects. This is our master list.
+    const allTasks = appData.projects.flatMap(p => p.tasks);
+    console.log('[MAIN] > Total tasks found:', allTasks.length); // New logging for clarity
+
+    // 2. Determine which tasks to render based on the view mode.
+    let tasksToRender = allTasks; // By default, show all tasks.
     if (activeModeBtn.id === 'view-btn-my-tasks') {
-        const allTasks = appData.projects.flatMap(p => p.tasks);
         const currentUserId = appData.currentUserId;
-        baseTasks = allTasks.filter(task => 
-            task.userId == currentUserId || 
-            (task.members && task.members.some(member => member.userId == currentUserId))
+        tasksToRender = allTasks.filter(task =>
+            (task.curator && task.curator.id === currentUserId) ||
+            (task.author && task.author.id === currentUserId)
+            // Note: Filtering by 'task.members' can be added here later if needed.
         );
-    } else {
-        baseTasks = appData.projects.flatMap(p => p.tasks);
     }
 
-    // --- ДОБАВЛЕНО: Логирование массива задач перед фильтрацией ---
-    console.log('[MAIN] > Массив задач для фильтрации (baseTasks):', baseTasks);
-    // ----------------------------------------------------------
-
-    const filteredTasks = activeFilters.length > 0
-        ? baseTasks.filter(task => activeFiltersSet.has(String(task.stageId)))
-        : baseTasks;
+    // 3. Apply the stage filters to the selected list of tasks.
+    const filteredTasks = activeFilters.length > 0 ?
+        tasksToRender.filter(task => task && task.stage && activeFiltersSet.has(String(task.stage.id))) :
+        tasksToRender;
 
     if (activeModeBtn.id === 'view-btn-projects') {
         const filteredProjects = JSON.parse(JSON.stringify(appData.projects));
-        const filteredTasksSet = new Set(filteredTasks.map(t => t.taskId));
+        const filteredTasksSet = new Set(filteredTasks.map(t => t.id));
         filteredProjects.forEach(p => {
-            p.tasks = p.tasks.filter(t => filteredTasksSet.has(t.taskId));
+            // --- ИСПРАВЛЕНИЕ: Проверяем, что p.tasks существует, прежде чем фильтровать ---
+            // Если p.tasks отсутствует после JSON.parse, инициализируем его как пустой массив.
+            if (p.tasks) {
+                p.tasks = p.tasks.filter(t => filteredTasksSet.has(t.taskId));
+            } else {
+                p.tasks = [];
+            }
         });
         render.renderProjects(filteredProjects, appData.userName, appData.userRole, {});
     } else {
