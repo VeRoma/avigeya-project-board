@@ -222,6 +222,10 @@ function initializeApp() {
         baseTasks = appData.projects.flatMap(p => p.tasks);
     }
 
+    // --- ДОБАВЛЕНО: Логирование массива задач перед фильтрацией ---
+    console.log('[MAIN] > Массив задач для фильтрации (baseTasks):', baseTasks);
+    // ----------------------------------------------------------
+
     const filteredTasks = activeFilters.length > 0
         ? baseTasks.filter(task => activeFiltersSet.has(String(task.stageId)))
         : baseTasks;

@@ -10,22 +10,44 @@ const API_BASE_URL = 'http://localhost:8080/api/v1';
  * @returns {Promise<any>} - Распарсенный JSON-ответ.
  */
 async function fetchApi(endpoint, options = {}) {
+    // --- ДОБАВЛЕНО: Логирование исходящего запроса ---
+    console.log(`[API] > Отправка запроса: ${options.method || 'GET'} ${API_BASE_URL}${endpoint}`);
+    if (options.body) {
+        console.log(`[API] > Тело запроса:`, options.body);
+    }
+    // ---------------------------------------------
     try {
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        // --- ДОБАВЛЕНО: Логирование полного объекта запроса ---
+        const fetchOptions = {
             headers: {
                 'Content-Type': 'application/json',
                 ...options.headers,
             },
             ...options,
-        });
+        };
+        console.log(`[API] > Полные параметры для fetch:`, JSON.parse(JSON.stringify(fetchOptions)));
+        // ----------------------------------------------------
+
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, fetchOptions);
+
+        console.log(`[API] < Получен ответ. Статус: ${response.status} ${response.statusText}`);
 
         if (!response.ok) {
-            // Попытаемся прочитать тело ошибки для более детальной информации
-            const errorData = await response.json().catch(() => ({
-                message: 'Server returned a non-JSON error response',
-                status: response.status
-            }));
-            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+            // --- УЛУЧШЕННОЕ ЛОГИРОВАНИЕ ОШИБОК ---
+            // Попытаемся прочитать тело ответа как текст, так как ошибка может быть не в формате JSON
+            const errorText = await response.text();
+            console.error(`--- ERROR RESPONSE BODY (Status: ${response.status}) ---`);
+            console.error(errorText);
+            console.error(`--- END ERROR RESPONSE BODY ---`);
+
+            // Попробуем распарсить как JSON для стандартной обработки
+            try {
+                const errorData = JSON.parse(errorText);
+                throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+            } catch (e) {
+                // Если это не JSON, выбрасываем общую ошибку
+                throw new Error(`HTTP error! status: ${response.status}. See console for non-JSON error body.`);
+            }
         }
 
         // Если у ответа нет тела (например, статус 204 No Content), возвращаем success

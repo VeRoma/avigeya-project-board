@@ -70,16 +70,28 @@ public class DataInitializer implements CommandLineRunner {
         try (InputStream is = getClass().getClassLoader().getResourceAsStream("AvigeyaProjectDataBase - Users.csv");
              BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
             String line;
-            reader.readLine();
+            reader.readLine(); // Пропускаем заголовок
             while ((line = reader.readLine()) != null) {
                 String[] columns = line.split(",");
-                if (columns.length > 4) {
+                if (columns.length > 4) { // Убедимся, что есть все основные колонки
                     User user = new User();
                     user.setName(columns[1]);
                     user.setRole(columns[4]);
-                    if (columns.length > 5) {
+
+                    // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+                    // Читаем tg_user_id из колонки 3
+                    if (columns.length > 3 && !columns[3].isEmpty()) {
+                        try {
+                            user.setTgUserId(Long.parseLong(columns[3]));
+                        } catch (NumberFormatException e) {
+                            System.out.println("ПРЕДУПРЕЖДЕНИЕ: Не удалось прочитать tg_user_id '" + columns[3] + "' для пользователя '" + columns[1] + "'.");
+                        }
+                    }
+
+                    if (columns.length > 5 && !columns[5].isEmpty()) {
                         user.setDescription(columns[5]);
                     }
+
                     User savedUser = userRepository.save(user);
                     long oldId = Long.parseLong(columns[0]);
                     userMap.put(oldId, savedUser);
@@ -172,10 +184,9 @@ public class DataInitializer implements CommandLineRunner {
                     if (!columns[6].isEmpty()) task.setPriority(Integer.parseInt(columns[6]));
 
                     if (task.getProject() != null && task.getCurator() != null && task.getAuthor() != null) {
-                        // --- ВОТ КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ ---
-                        Task savedTask = taskRepository.save(task); // Сначала сохраняем
+                        Task savedTask = taskRepository.save(task);
                         long oldId = Long.parseLong(columns[0]);
-                        taskMap.put(oldId, savedTask); // Потом кладём в карту сохранённый объект с новым ID
+                        taskMap.put(oldId, savedTask);
                     } else {
                         System.out.println("ПРЕДУПРЕЖДЕНИЕ: Пропущена задача '" + task.getName() + "' (строка " + lineNumber + ") из-за ненайденной связи.");
                     }

@@ -16,6 +16,8 @@ public class AppDataDto {
     // Проекты с задачами, отфильтрованными для этого пользователя
     private List<ProjectDto> projects;
 
+    private List<TaskDto> tasks;
+
     // Справочники, необходимые для работы UI
     private List<ProjectDto> allProjects; // Полный список проектов (id + name)
     private List<UserDto> allUsers;

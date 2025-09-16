@@ -17,5 +17,10 @@ public class Status {
     @Column(nullable = false, unique = true)
     private String name;
 
-    // Пока пропустим icon, order, description для простоты
+    @Column
+    private String icon;
+
+    @Column(name = "\"order\"")
+    private Integer order;
+
 }

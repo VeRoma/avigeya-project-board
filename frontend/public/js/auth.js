@@ -12,8 +12,8 @@ function getDebugPayload() {
     const urlParams = new URLSearchParams(window.location.search);
     const userId = urlParams.get('debug_user_id');
     if (userId) {
-        // Возвращаем объект, который будет отправлен на бэкенд
-        return { debugUserId: userId };
+        // Явно преобразуем ID в число, чтобы соответствовать Long на бэкенде
+        return { debugUserId: parseInt(userId, 10) };
     }
     // В рабочем режиме возвращаем initData от Telegram
     return { initData: window.Telegram.WebApp.initData };
@@ -24,17 +24,39 @@ function getDebugPayload() {
  * Запрашивает данные с бэкенда, используя initData от Telegram или debug_user_id.
  */
 export async function initializeApp() {
+    console.log('[AUTH] > Начало инициализации приложения...');
     const tg = window.Telegram.WebApp;
 
     try {
         tg.ready();
         uiUtils.showLoading();
 
+        console.log('[AUTH] > Шаг 1: Получение payload для аутентификации.');
         // 1. Получаем initData от Telegram или ID для отладки
         const payload = getDebugPayload();
+        console.log('[AUTH] > Payload для бэкенда:', payload);
 
         // 2. Отправляем данные на наш Java-бэкенд для получения всех данных
         const appData = await api.getAppData(payload);
+        // --- ДОБАВЛЕНО: Логирование полученных данных ---
+        console.log('[AUTH] > Получены данные с сервера (appData):', appData);
+        // ---------------------------------------------
+
+        // --- КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Распределяем задачи по проектам ---
+        // Бэкенд возвращает проекты и задачи раздельно. Соберем их вместе.
+        if (appData && appData.projects && appData.tasks) {
+            // 1. Создаем карту для быстрого доступа к проектам по ID
+            const projectMap = new Map(appData.projects.map(p => [p.projectId, p]));
+            // 2. Инициализируем у каждого проекта пустой массив задач
+            projectMap.forEach(p => { p.tasks = []; });
+            // 3. Распределяем задачи по их проектам
+            for (const task of appData.tasks) {
+                const project = projectMap.get(task.projectId);
+                if (project) {
+                    project.tasks.push(task);
+                }
+            }
+        }
 
         // 3. Сохраняем полученные данные в локальное хранилище (store)
         store.setAppData(appData);
@@ -47,9 +69,6 @@ export async function initializeApp() {
         // 5. Отрисовываем проекты
         const accordionState = {}; // Начальное состояние - все свернуто
         render.renderProjects(appData.projects, appData.userName, appData.userRole, accordionState, store.getStageFilters());
-
-        // 6. Запускаем фоновую загрузку дополнительных данных (связей)
-        handlers.handleBackgroundDataFetch();
 
         // 7. Показываем основную кнопку Telegram
         tg.MainButton.setText('Новая задача');

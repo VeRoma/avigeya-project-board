@@ -64,6 +64,9 @@ export async function handleSaveActiveTask() {
                 curatorId: curator ? curator.userId : null,
                 version: result.newVersion
             });
+            
+            // Обновляем задачу в глобальном кэше (taskMap)
+            store.updateTaskInCache(originalTask, store.findTask(taskId).project);
 
             // Обновляем data-атрибуты в DOM для следующего редактирования
             activeEditElement.dataset.task = JSON.stringify(originalTask).replace(/'/g, '&apos;');
@@ -459,24 +462,5 @@ export async function handleUpdateTaskMembers(targetElementId, curatorId, member
     } catch (error) {
         console.error('Ошибка при обновлении исполнителей:', error);
         uiUtils.showMessage(error.message, 'error');
-    }
-}
-
-
-/**
- * Обработчик для фоновой загрузки всех связей.
- * Не показывает сообщений пользователю, работает тихо.
- */
-
-
-/**
- * Обработчик для фоновой загрузки всех связей.
- */
-export async function handleBackgroundDataFetch() {
-    try {
-        const connections = await api.fetchAllConnections();
-        store.setAllConnections(connections);
-    } catch (error) {
-        console.error('[BACKGROUND FETCH ERROR]', error);
     }
 }
