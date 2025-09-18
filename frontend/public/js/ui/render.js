@@ -1,12 +1,15 @@
 import * as store from '../store.js';
 
 function renderTaskCard(task, isUserView, statuses) {
+    // --- ЛОГ: Проверяем, есть ли версия у задачи перед рендерингом ---
+    console.log(`[RENDER] > renderTaskCard for task ID ${task.id}, version: ${task.version}`);
+
     const taskDataString = JSON.stringify(task).replace(/'/g, '&apos;');
     const headerTopLine = isUserView ? (store.getProjectNameById(task.projectId) || 'Неизвестный проект') : (task.curator ? task.curator.name : 'Не назначен');
     const statusIcon = task.status ? task.status.icon || '' : '';
 
     // --- ИЗМЕНЕНИЕ: Убираем класс .card и внешнюю обертку. Теперь это просто контейнер задачи. ---
-    return `<div class="task-container" draggable="true" data-task-id="${task.id}" data-status-group="${task.status.name}">
+    return `<div class="task-container" draggable="true" data-task-id="${task.id}" data-status-group="${task.status.name}" data-version="${task.version}">
                 <div class="task-header flex justify-between items-center gap-3 cursor-pointer select-none">
                     <div class="flex-grow min-w-0">
                         <p class="text-xs pointer-events-none" style="color: var(--tg-theme-hint-color);">${headerTopLine}</p>
@@ -35,8 +38,12 @@ export function renderProjects(projects, userName, userRole, expandedState = {},
     
     // --- НАЧАЛО ИСПРАВЛЕНИЙ: ЕДИНАЯ ЛОГИКА ДЛЯ ВСЕХ РОЛЕЙ ---
     
+    console.groupCollapsed(`[RENDER] > Обработка ${projects.length} проектов для рендеринга`);
     // Перебираем проекты, которые уже отфильтрованы для текущего пользователя на сервере
     projects.forEach(project => {
+        // --- ОТЛАДОЧНЫЙ ЛОГ: Показываем, какой проект и с какими задачами мы рендерим ---
+        console.log(`Проект: "${project.name}". Найдено задач: ${project.tasks ? project.tasks.length : 0}`, project.tasks);
+
         // Находим полные данные о проекте из общего списка (нужно для ID и кнопок управления)
         const allProjects = store.getAppData().allProjects || [];
         // --- ИСПРАВЛЕНИЕ: Используем `p.name` вместо `p.projectName` ---
@@ -50,27 +57,32 @@ export function renderProjects(projects, userName, userRole, expandedState = {},
         // if (project.tasks.length === 0) return;
 
         const projectCard = document.createElement('div');
-        projectCard.className = 'project-card card rounded-xl shadow-md overflow-hidden';
+        projectCard.className = 'project-card card rounded-xl shadow-md overflow-hidden relative';
+        // --- ИСПРАВЛЕНИЕ: Добавляем ID проекта в data-атрибут для идентификации ---
+        projectCard.dataset.projectId = fullProject.id;
 
         let projectHtml = '';
         
         // Сортируем задачи внутри проекта
         project.tasks.sort((a, b) => {
-            const orderA = (statuses.find(s => s.name === a.status) || { order: 99 }).order;
-            const orderB = (statuses.find(s => s.name === b.status) || { order: 99 }).order;
+            // --- ИСПРАВЛЕНИЕ: Обращаемся к a.status.name, так как status - это объект ---
+            const statusA = a.status ? a.status.name : '';
+            const statusB = b.status ? b.status.name : '';
+            const orderA = (statuses.find(s => s.name === statusA) || { order: 999 }).order;
+            const orderB = (statuses.find(s => s.name === statusB) || { order: 999 }).order;
             if (orderA !== orderB) return orderA - orderB;
             return (a.priority || 999) - (b.priority || 999);
         });
 
         // Группируем задачи по статусу
-        const tasksByStatus = project.tasks.reduce((acc, task) => { // task.status is an object
-            const statusName = task.status ? task.status.name : 'Без статуса'; // Use the name property
+        const tasksByStatus = project.tasks.reduce((acc, task) => {
+            const statusName = task.status ? task.status.name : 'Без статуса';
             if (!acc[statusName]) acc[statusName] = [];
             acc[statusName].push(task);
             return acc;
         }, {});
         
-        const sortedStatusKeys = Object.keys(tasksByStatus).sort((a,b) => (statuses.find(s => s.name === a) || { order: 99 }).order - (statuses.find(s => s.name === b) || { order: 99 }).order);
+        const sortedStatusKeys = Object.keys(tasksByStatus).sort((a,b) => (statuses.find(s => s.name === a) || { order: 999 }).order - (statuses.find(s => s.name === b) || { order: 999 }).order);
         
         sortedStatusKeys.forEach(status => {
             const tasksInGroup = tasksByStatus[status];
@@ -88,7 +100,7 @@ export function renderProjects(projects, userName, userRole, expandedState = {},
         });
 
         const title = project.name;
-        const tasksInWorkCount = project.tasks.filter(t => t.status === 'В работе').length;
+        const tasksInWorkCount = project.tasks.filter(t => t.status && t.status.name === 'В работе').length;
         const subtitle = `${tasksInWorkCount} задач в работе`;
         const isAdminOrOwner = userRole === 'admin' || userRole === 'owner';
 
@@ -105,20 +117,22 @@ export function renderProjects(projects, userName, userRole, expandedState = {},
             : '';
 
         projectCard.innerHTML = `
-            <div class="project-header p-4 cursor-pointer">
-                <div class="project-title-container">
+            <div class="project-header p-4 cursor-pointer flex justify-between items-center">
+                <div class="project-title-container flex-grow">
                     <h2 class="font-bold text-lg pointer-events-none">${title}</h2>
                     <p class="text-sm mt-1 pointer-events-none" style="color: var(--tg-theme-hint-color);">${subtitle}</p>
                 </div>
-                <div class="project-actions">
+                <div class="project-actions flex-shrink-0">
                     ${manageMembersButton}
                     ${manageStagesButton}
                 </div>
+                <svg class="expand-icon w-6 h-6 transition-transform text-gray-500 ml-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
             <div class="project-content collapsible-content">${projectHtml}</div>`;
 
         projectsContainer.appendChild(projectCard);
     });
+    console.groupEnd();
     
     // --- КОНЕЦ ИСПРАВЛЕНИЙ ---
     
@@ -139,18 +153,26 @@ export function renderProjects(projects, userName, userRole, expandedState = {},
     }
 }
 
-export function renderTaskDetails(detailsContainer, userRole) {
-    const task = JSON.parse(detailsContainer.dataset.task);
+export function renderTaskDetails(detailsContainer, task, allUsers, userRole) {
+    // --- ЛОГ: Проверяем, какая версия у задачи при рендеринге деталей ---
+    console.log(`[RENDER] > renderTaskDetails for task ID ${task.id}, version: ${task.version}`);
 
+    // --- ИСПРАВЛЕНИЕ: Устанавливаем data-version на контейнер ---
+    detailsContainer.dataset.version = task.version;
+    
     // ИСПРАВЛЕНИЕ: Используем task.curator вместо task.responsible и меняем заголовок
+    // Ensure task.curator exists before accessing its name
+    const curatorName = task.curator ? task.curator.name : 'Не назначен';
+    const authorName = task.author ? task.author.name : 'Неизвестно';
+    
     let responsibleFieldHtml = `
         <div>
             <label class="text-xs font-medium text-gray-500">Куратор</label>
             <div class="view-field mt-1">
-                <p class="task-responsible-view">${task.curator || 'Не назначен'}</p>
+                <p class="task-responsible-view">${curatorName}</p>
             </div>
             <div class="edit-field modal-trigger-field mt-1 p-2 border rounded-md" data-modal-type="user" style="border-color: var(--tg-theme-hint-color);">
-                <p class="task-responsible-view truncate pr-2">${task.curator || 'Выберите ответственных'}</p>
+                <p class="task-responsible-view truncate pr-2">${curatorName}</p>
                 <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
         </div>`;
@@ -160,7 +182,7 @@ export function renderTaskDetails(detailsContainer, userRole) {
         <div>
             <label class="text-xs font-medium text-gray-500">Куратор</label>
             <div class="view-field mt-1">
-                <p class="task-responsible-view">${task.curator || 'Не назначен'}</p>
+                <p class="task-responsible-view">${curatorName}</p>
             </div>
         </div>`;
     }
@@ -171,27 +193,27 @@ export function renderTaskDetails(detailsContainer, userRole) {
                 <p class="font-bold text-lg view-field w-full">${task.name}</p>
                 <div class="flex items-center ml-4 flex-shrink-0">
                     <button class="delete-btn p-2 rounded-full text-red-500"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
-                    <button class="edit-btn p-2 rounded-full ml-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L14.732 3.732z"></path></svg></button>
+                    <button id="edit-task-btn" class="edit-btn p-2 rounded-full ml-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L14.732 3.732z"></path></svg></button>
                 </div>
             </div>
             <div class="edit-field edit-field-block"><label class="text-xs font-medium text-gray-500">Наименование</label><input type="text" class="details-input task-name-edit mt-1" value="${task.name}"></div>
             <div><label class="text-xs font-medium text-gray-500">Сообщение исполнителю</label><p class="view-field whitespace-pre-wrap mt-1">${task.message || '...'}</p><textarea rows="3" class="edit-field edit-field-block details-input task-message-edit mt-1">${task.message || ''}</textarea></div>
             <div><label class="text-xs font-medium text-gray-500">Статус</label>
-                <div class="view-field mt-1"><p class="task-status-view">${task.status}</p></div>
-                <div class="edit-field modal-trigger-field mt-1 p-2 border rounded-md" data-modal-type="status" style="border-color: var(--tg-theme-hint-color);"><p class="task-status-view">${task.status}</p><svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>
+                <div class="view-field mt-1"><p class="task-status-view">${task.status ? task.status.name : 'Неизвестно'}</p></div>
+                <div class="edit-field modal-trigger-field mt-1 p-2 border rounded-md" data-modal-type="status" style="border-color: var(--tg-theme-hint-color);"><p class="task-status-view">${task.status ? task.status.name : 'Неизвестно'}</p><svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>
             </div>
             <div><label class="text-xs font-medium text-gray-500">Проект</label>
-                <div class="view-field mt-1"><p class="task-project-view">${task.project}</p></div>
-                <div class="edit-field modal-trigger-field mt-1 p-2 border rounded-md" data-modal-type="project" style="border-color: var(--tg-theme-hint-color);"><p class="task-project-view">${task.project}</p><svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>
+                <div class="view-field mt-1"><p class="task-project-view">${store.getProjectNameById(task.projectId)}</p></div>
+                <div class="edit-field modal-trigger-field mt-1 p-2 border rounded-md" data-modal-type="project" style="border-color: var(--tg-theme-hint-color);"><p class="task-project-view">${store.getProjectNameById(task.projectId)}</p><svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>
             </div>
             <div>
                 <label class="text-xs font-medium text-gray-500">Этап</label>
-                <div class="view-field mt-1"><p class="task-stage-view">${store.getStageNameById(task.stageId) || 'Не назначен'}</p></div>
-                <div class="edit-field modal-trigger-field mt-1 p-2 border rounded-md" data-modal-type="stage" style="border-color: var(--tg-theme-hint-color);"><p class="task-stage-view">${store.getStageNameById(task.stageId) || 'Не назначен'}</p><svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>
+                <div class="view-field mt-1"><p class="task-stage-view">${task.stage ? task.stage.name : 'Не назначен'}</p></div>
+                <div class="edit-field modal-trigger-field mt-1 p-2 border rounded-md" data-modal-type="stage" style="border-color: var(--tg-theme-hint-color);"><p class="task-stage-view">${task.stage ? task.stage.name : 'Не назначен'}</p><svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>
             </div>
             ${responsibleFieldHtml}
             <div class="text-xs mt-2" style="color: var(--tg-theme-hint-color);">
-                <span>Последнее изменение: ${task.modifiedBy || 'N/A'} (${task.modifiedAt || 'N/A'})</span>
+                <span>Автор: ${authorName}</span>
             </div>
         </div>`;
 }

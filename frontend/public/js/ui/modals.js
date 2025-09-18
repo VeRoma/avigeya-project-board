@@ -24,10 +24,8 @@ export function openStageModal(activeTaskDetailsElement) {
     const projectId = taskData.projectId;
     const currentStageId = taskData.stageId;
 
-    // Используем фоново загруженные данные из store
-    const allProjectStages = store.getAllProjectStages();
     const activeStageIds = new Set(
-        allProjectStages
+        (store.getAppData().projectStages || [])
             .filter(ps => ps.projectId == projectId && ps.isActive === 'TRUE')
             .map(ps => ps.stageId)
     );
@@ -93,10 +91,8 @@ export async function openUserModal(activeTaskDetailsElement, allUsers, userRole
     const currentCuratorId = taskData.curatorId;
     const currentMemberIds = new Set((taskData.members || []).map(m => m.userId));
 
-    // Используем фоново загруженные данные из store
-    const allProjectMembers = store.getAllProjectMembers();
     const projectMemberIds = new Set(
-        allProjectMembers
+        (store.getAppData().projectMembers || [])
             .filter(m => m.projectId == projectId && m.isActive === 'TRUE')
             .map(m => m.userId)
     );
@@ -242,10 +238,8 @@ export function openAddTaskModal(allProjects, allUsers, userRole, userName) {
     projectSelect.addEventListener('change', (event) => {
         const projectId = event.target.value;
 
-        // Обновляем список участников из предзагруженных данных
-        const allProjectMembers = store.getAllProjectMembers();
         const projectMemberIds = new Set(
-            allProjectMembers // This is correct
+            (store.getAppData().projectMembers || [])
                 .filter(m => String(m.projectId) === String(projectId) && m.isActive === 'TRUE') // Compare as strings
                 .map(m => m.userId) // This is correct
         );
@@ -262,10 +256,8 @@ export function openAddTaskModal(allProjects, allUsers, userRole, userName) {
             `).join('');
         }
 
-        // Обновляем список этапов из предзагруженных данных
-        const allProjectStages = store.getAllProjectStages();
         const activeStageIds = new Set(
-            allProjectStages // This is correct
+            (store.getAppData().projectStages || [])
                 .filter(ps => String(ps.projectId) === String(projectId) && ps.isActive === 'TRUE') // Compare as strings
                 .map(ps => ps.stageId) // This is correct
         );
@@ -378,15 +370,15 @@ export function openManageMembersModal(projectName, allUsers, currentMemberIds) 
     allUsers.sort((a, b) => a.name.localeCompare(b.name));
 
     listContainer.innerHTML = allUsers.map(user => {
-        const isAdminOrOwner = user.role === 'admin' || user.role === 'owner';
-        const isChecked = isAdminOrOwner || currentMemberIds.includes(user.userId);
+        const isAdminOrOwner = user.role === 'admin' || user.role === 'owner'; // Администраторы и владельцы всегда в проекте
+        const isChecked = isAdminOrOwner || currentMemberIds.includes(user.id); // ИСПРАВЛЕНО: user.userId -> user.id
         const isDisabled = isAdminOrOwner;
         const titleHint = isDisabled ? 'title="Администраторы всегда являются участниками проекта"' : '';
         
         return `
             <label class="list-item-selectable ${isDisabled ? 'opacity-70 cursor-not-allowed' : ''}" ${titleHint}>
                 <span>${user.name} ${isDisabled ? '<span class="text-xs" style="color: var(--tg-theme-hint-color);">(Админ)</span>' : ''}</span>
-                <input type="checkbox" class="member-checkbox" value="${user.userId}" ${isChecked ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}>
+                <input type="checkbox" class="member-checkbox" value="${user.id}" ${isChecked ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}>
             </label>
         `;
     }).join('');
@@ -406,6 +398,8 @@ export function openManageMembersModal(projectName, allUsers, currentMemberIds) 
 }
 
 export function openManageStagesModal(projectName, allStages, activeStageIds) {
+    console.log(`[MODALS] > Рендеринг модального окна этапов. Проект: "${projectName}". Активные ID:`, activeStageIds);
+
     const header = manageStagesModal.querySelector('.modal-header');
     const listContainer = document.getElementById('stages-modal-list');
     
@@ -417,11 +411,11 @@ export function openManageStagesModal(projectName, allStages, activeStageIds) {
     const activeStageIdsSet = new Set(activeStageIds.map(String));
 
     listContainer.innerHTML = allStages.map(stage => {
-        const isChecked = activeStageIdsSet.has(String(stage.stageId));
+        const isChecked = activeStageIdsSet.has(String(stage.id));
         return `
             <label class="list-item-selectable">
                 <span>${stage.name}</span>
-                <input type="checkbox" class="stage-checkbox" value="${stage.stageId}" ${isChecked ? 'checked' : ''}>
+                <input type="checkbox" class="stage-checkbox" value="${stage.id}" ${isChecked ? 'checked' : ''}>
             </label>
         `;
     }).join('');
@@ -444,6 +438,8 @@ export function openStagesFilterModal(onFilterChange) {
     const allStages = store.getAppData().allStages || [];
     const activeFilters = new Set(store.getActiveStageFilters());
 
+    console.log('[MODALS] > Открытие фильтра по этапам. Текущие активные фильтры (ID):', Array.from(activeFilters));
+
     stagesFilterModal.innerHTML = `
         <div class="modal-content modal-content-compact">
             <div class="modal-header">
@@ -454,7 +450,7 @@ export function openStagesFilterModal(onFilterChange) {
                 ${allStages.map(stage => `
                     <label class="list-item-selectable">
                         <span>${stage.name}</span>
-                        <input type="checkbox" data-stage-id="${stage.stageId}" ${activeFilters.has(String(stage.stageId)) ? 'checked' : ''}>
+                        <input type="checkbox" data-stage-id="${stage.id}" ${activeFilters.has(String(stage.id)) ? 'checked' : ''}>
                     </label>
                 `).join('')}
             </div>
@@ -463,12 +459,16 @@ export function openStagesFilterModal(onFilterChange) {
     stagesFilterModal.classList.add('active');
     
     const handleChange = () => {
-        const selectedIds = Array.from(stagesFilterModal.querySelectorAll('input[type="checkbox"]:checked'))
+        // 1. Собираем все выбранные ID из модального окна
+        const selectedIds = Array.from(stagesFilterModal.querySelectorAll('input[data-stage-id]:checked'))
             .map(cb => cb.dataset.stageId);
         
-        allStages.forEach(stage => store.updateStageFilters(stage.stageId, false));
-        selectedIds.forEach(id => store.updateStageFilters(id, true));
-        onFilterChange();
+        console.log('[MODALS] > Изменение в фильтре. Выбранные ID в модальном окне:', selectedIds);
+
+        // 2. Обновляем состояние в store
+        store.setActiveStageFilters(selectedIds);
+        // 3. Вызываем перерисовку приложения
+        onFilterChange(); 
     };
     
     const cleanup = setupSelectAllCheckbox(stagesFilterModal, '.modal-body', handleChange);

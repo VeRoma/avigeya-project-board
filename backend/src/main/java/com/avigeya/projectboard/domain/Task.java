@@ -7,6 +7,7 @@ import lombok.Setter;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Getter
 @Setter
@@ -21,6 +22,9 @@ public class Task {
     @Column(nullable = false)
     private String name;
 
+    @Column(columnDefinition = "TEXT")
+    private String message;
+
     private Integer priority;
 
     private LocalDate startDate;
@@ -28,6 +32,9 @@ public class Task {
     private LocalDate finishDate;
 
     private boolean isDeleted;
+
+    @Version
+    private Integer version;
 
     // --- СВЯЗИ С ДРУГИМИ СУЩНОСТЯМИ ---
 
@@ -54,4 +61,15 @@ public class Task {
     @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<TaskMember> taskMembers = new HashSet<>();
 
+    /**
+     * Вспомогательный метод для получения списка участников (User) из коллекции
+     * связей (TaskMember).
+     * Не является полем в базе данных.
+     * 
+     * @return Набор пользователей, являющихся участниками задачи.
+     */
+    @Transient // Указывает, что это поле не должно быть сохранено в БД
+    public Set<User> getMembers() {
+        return this.taskMembers.stream().map(TaskMember::getUser).collect(Collectors.toSet());
+    }
 }

@@ -7,42 +7,10 @@ let _appData = {};
 let _allProjects = [];
 let _allUsers = [];
 let _allStatuses = [];
+let _taskMap = new Map(); // Кэш для быстрого доступа к задачам по ID
 let stageFilters = {};
 let activeStageFilters = new Set();
 
-// Приватные переменные для фоновой загрузки
-let _allProjectMembers = [];
-let _allTaskMembers = [];
-let _allProjectStages = [];
-
-/**
- * Сохраняет данные, полученные в фоне.
- */
-export function setAllConnections(connections) {
-    if (!connections) return;
-    _allProjectMembers = connections.projectMembers || [];
-    _allTaskMembers = connections.taskMembers || [];
-    _allProjectStages = connections.projectStages || [];
-    console.log('[STORE.JS LOG] Background data loaded and stored.', {
-        projectMembersCount: _allProjectMembers.length,
-        taskMembersCount: _allTaskMembers.length,
-        projectStagesCount: _allProjectStages.length
-    });
-}
-
-/**
- * Возвращает всех участников всех проектов (из фоновой загрузки).
- */
-export function getAllProjectMembers() {
-    return _allProjectMembers;
-}
-
-/**
- * Возвращает все активные этапы для всех проектов (из фоновой загрузки).
- */
-export function getAllProjectStages() {
-    return _allProjectStages;
-}
 
 /**
  * Сохраняет все начальные данные приложения в хранилище.
@@ -53,6 +21,22 @@ export function setAppData(data) {
     _allProjects = data.allProjects || [];
     _allUsers = data.allUsers || [];
     _allStatuses = data.allStatuses || [];
+    // Сохраняем новые данные о связях
+    _appData.projectMembers = data.projectMembers || [];
+    _appData.projectStages = data.projectStages || [];
+
+
+    // Создаем кэш задач
+    _taskMap.clear();
+    if (data.projects) {
+        for (const project of data.projects) {
+            if (project.tasks) {
+                for (const task of project.tasks) {
+                    _taskMap.set(String(task.id), task);
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -60,7 +44,7 @@ export function setAppData(data) {
  */
 export function selectAllStagesByDefault() {
     if (!_appData.allStages) return;
-    const allStageIds = _appData.allStages.map(stage => String(stage.stageId));
+    const allStageIds = _appData.allStages.map(stage => String(stage.id));
     activeStageFilters = new Set(allStageIds);
 }
 
@@ -96,12 +80,18 @@ export function getAllStatuses() {
  * Находит задачу и ее проект по taskId.
  */
 export function findTask(taskId) {
-    if (!_appData.projects) return { task: null, project: null };
-    for (const project of _appData.projects) {
-        const task = project.tasks.find(t => String(t.id) === String(taskId));
-        if (task) return { task, project };
-    }
-    return { task: null, project: null };
+    const task = _taskMap.get(String(taskId));
+    if (!task) return { task: null, project: null };
+
+    const project = _appData.projects.find(p => String(p.id) === String(task.projectId));
+    return { task, project };
+}
+
+/**
+ * Находит пользователя по имени.
+ */
+export function findUserByName(userName) {
+    return _allUsers.find(u => u.name === userName);
 }
 
 /**
@@ -110,7 +100,14 @@ export function findTask(taskId) {
 export function findUserById(userId) {
     if (!_allUsers) return null;
     // Приводим к строке для надежного сравнения
-    return _allUsers.find(u => String(u.userId) === String(userId));
+    return _allUsers.find(u => String(u.id) === String(userId));
+}
+
+/**
+ * Возвращает массив пользователей по массиву ID.
+ */
+export function getUsersByIds(userIds) {
+    return userIds.map(id => findUserById(id)).filter(Boolean);
 }
 
 /**
@@ -118,7 +115,7 @@ export function findUserById(userId) {
  */
 export function findStatusByName(statusName) {
     if (!_allStatuses) return null;
-    return _allStatuses.find(s => s.name === statusName);
+    return _allStatuses.find(s => s.name === statusName) || null;
 }
 
 /**
@@ -133,18 +130,74 @@ export function getProjectNameById(projectId) {
     return project ? project.name : 'Неизвестный проект';
 }
 
+/**
+ * Обновляет данные существующей задачи в store.
+ */
+export function updateTask(updatedTask) {
+    const { task: existingTask } = findTask(updatedTask.id);
+    if (existingTask) {
+        Object.assign(existingTask, updatedTask);
+        _taskMap.set(String(updatedTask.id), existingTask);
+    }
+}
+
+/**
+ * Добавляет новую задачу в store.
+ */
+export function addTask(newTask) {
+    const project = _appData.projects.find(p => String(p.id) === String(newTask.projectId));
+    if (project) {
+        if (!project.tasks) project.tasks = [];
+        project.tasks.push(newTask);
+        _taskMap.set(String(newTask.id), newTask);
+    }
+}
+
+/**
+ * Заменяет временную задачу на постоянную после сохранения на сервере.
+ */
+export function replaceTask(tempId, finalTask) {
+    const { project } = findTask(tempId);
+    if (project) {
+        const taskIndex = project.tasks.findIndex(t => String(t.id) === String(tempId));
+        if (taskIndex !== -1) {
+            project.tasks[taskIndex] = finalTask;
+            _taskMap.delete(String(tempId));
+            _taskMap.set(String(finalTask.id), finalTask);
+        }
+    }
+}
+
+/**
+ * Удаляет задачу из store.
+ */
+export function removeTask(taskId) {
+    const { project } = findTask(taskId);
+    if (project) {
+        project.tasks = project.tasks.filter(t => String(t.id) !== String(taskId));
+        _taskMap.delete(String(taskId));
+    }
+}
+
+/**
+ * Рассчитывает следующий приоритет для задачи в указанном статусе и проекте.
+ */
+export function getNextPriorityForStatus(projectId, statusId) {
+    const project = _appData.projects.find(p => String(p.id) === String(projectId));
+    if (!project || !project.tasks) return 1;
+
+    const tasksInStatus = project.tasks.filter(t => t.status && String(t.status.id) === String(statusId));
+    const maxPriority = Math.max(0, ...tasksInStatus.map(t => t.priority || 0));
+    return maxPriority + 1;
+}
 
 export const setStageFilters = (filters) => { stageFilters = filters; };
 export const getStageFilters = () => stageFilters;
 
-export const getStageNameById = (stageId) => {
+export const getStageById = (stageId) => {
     if (!stageId) return 'Без этапа';
-    const data = getAppData();
-    if (!data || !data.allStages) {
-        return 'Неизвестный этап';
-    }
-    const stage = data.allStages.find(s => String(s.stageId) === String(stageId));
-    return stage ? stage.name : 'Неизвестный этап';
+    if (!_appData || !_appData.allStages) return null;
+    return _appData.allStages.find(s => String(s.id) === String(stageId)) || null;
 };
 
 // --- КОНЕЦ ЗАМЕНЫ ФАЙЛА ---
@@ -159,4 +212,13 @@ export function updateStageFilters(stageId, isSelected) {
     } else {
         activeStageFilters.delete(String(stageId));
     }
+}
+
+/**
+ * Устанавливает новый набор активных фильтров по этапам.
+ * @param {string[]} stageIds - Массив ID этапов, которые должны быть активны.
+ */
+export function setActiveStageFilters(stageIds) {
+    console.log('[STORE] > Установка новых активных фильтров по этапам:', stageIds);
+    activeStageFilters = new Set(stageIds.map(String));
 }

@@ -1,23 +1,23 @@
 package com.avigeya.projectboard.service;
 
-import com.avigeya.projectboard.domain.Project;
-import com.avigeya.projectboard.repository.ProjectRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import java.util.List;
 
-@Service
-public class ProjectService {
+public interface ProjectService {
 
-    private final ProjectRepository projectRepository;
+    /**
+     * Обновляет список этапов для указанного проекта.
+     *
+     * @param projectId ID проекта, для которого обновляются этапы.
+     * @param stageIds  Список ID новых этапов проекта.
+     */
+    void updateProjectStages(Long projectId, List<Long> stageIds);
 
-    @Autowired
-    public ProjectService(ProjectRepository projectRepository) {
-        this.projectRepository = projectRepository;
-    }
-
-    public List<Project> findAllProjects() {
-        return projectRepository.findAll();
-    }
+    /**
+     * Обновляет список участников для указанного проекта.
+     *
+     * @param projectId    ID проекта.
+     * @param memberIds    Список ID новых участников.
+     * @param modifierName Имя пользователя, вносящего изменения (для логирования).
+     */
+    void updateProjectMembers(Long projectId, List<Long> memberIds, String modifierName);
 }

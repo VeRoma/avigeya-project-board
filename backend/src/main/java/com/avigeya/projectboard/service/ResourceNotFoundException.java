@@ -1,16 +1,11 @@
-package com.avigeya.projectboard.exception;
+/*
 
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
+    ЭТОТ ФАЙЛ ЯВЛЯЕТСЯ ОШИБОЧНЫМ ДУБЛИКАТОМ.
 
-@ResponseStatus(HttpStatus.NOT_FOUND)
-public class ResourceNotFoundException extends RuntimeException {
+    Настоящий класс ResourceNotFoundException находится в пакете 'com.avigeya.projectboard.exception'.
 
-    public ResourceNotFoundException(String message) {
-        super(message);
-    }
+    Этот файл-дубликат вызывает критическую ошибку "Duplicate class" и мешает приложению запуститься.
 
-    public ResourceNotFoundException(String message, Throwable cause) {
-        super(message, cause);
-    }
-}
+    ПОЖАЛУЙСТА, УДАЛИТЕ ЭТОТ ФАЙЛ (ResourceNotFoundException.java) ИЗ ПАКЕТА 'service'.
+
+*/

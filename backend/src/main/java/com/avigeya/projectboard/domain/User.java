@@ -1,26 +1,29 @@
 package com.avigeya.projectboard.domain;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-@Getter
-@Setter
 @Entity
-@Table(name = "users") // Явно указываем имя таблицы "users"
+@Table(name = "users")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, name = "name") // Указываем, что имя не может быть пустым
     private String name;
-
-    private Long tgUserId;
-
-    @Column(nullable = false)
+    private String description;
     private String role;
 
-    private String description;
+    @Column(name = "tg_user_id", unique = true)
+    private Long tgUserId;
+
+    public User(Long id) {
+        this.id = id;
+    }
 }

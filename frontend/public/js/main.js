@@ -24,19 +24,36 @@ function initializeApp() {
         }
 
         // --- Обработчик кнопки "Редактировать" внутри карточки ---
-        if (event.target.id === 'edit-task-btn') {
+        const editBtn = event.target.closest('#edit-task-btn');
+        if (editBtn) {
             console.log('[CLICK HANDLER] > Matched: Edit Task Button');
             event.stopPropagation();
-            const detailsContainer = event.target.closest('.task-details');
+            const detailsContainer = editBtn.closest('.task-details');
             if (detailsContainer) {
+                const taskId = detailsContainer.id.replace('task-details-', '');
                 const backButtonHandler = () => {
-                    uiUtils.exitEditMode(detailsContainer);
-                    const { task } = store.findTask(detailsContainer.id.replace('task-details-', ''));
-                    render.renderTaskDetails(detailsContainer, task, store.getAllUsers(), store.getAppData().userRole);
-                    uiUtils.updateFabButtonUI(false, handlers.handleSaveActiveTask, handlers.handleShowAddTaskModal);
+                    // Теперь кнопка "Назад" тоже будет проверять изменения
+                    uiUtils.checkForUnsavedChanges(() => {
+                        uiUtils.exitEditMode(detailsContainer, backButtonHandler);
+                        uiUtils.updateFabButtonUI(false, null, handlers.handleShowAddTaskModal);
+                    });
                 };
+
+                uiUtils.setBackButtonHandler(backButtonHandler);
                 uiUtils.enterEditMode(detailsContainer, backButtonHandler);
-                uiUtils.updateFabButtonUI(true, handlers.handleSaveActiveTask, handlers.handleShowAddTaskModal);
+
+                const saveHandler = () => {
+                    // Используем новую универсальную функцию для сбора данных
+                    const updatedTaskData = uiUtils.getCurrentTaskDataFromDOM(detailsContainer);
+                    if (!updatedTaskData) return; // Если данные не собрались, ничего не делаем
+                    
+                    handlers.handleSaveActiveTask(updatedTaskData).then(() => {
+                        // После успешного сохранения перерисовываем приложение
+                        rerenderApp();
+                    });
+                };
+
+                uiUtils.updateFabButtonUI(true, saveHandler, handlers.handleShowAddTaskModal);
             }
             return;
         }
@@ -71,33 +88,38 @@ function initializeApp() {
                 return console.log('[CLICK HANDLER] > Ignored: Click was on status area.');
             
             const detailsContainer = taskHeader.nextElementSibling;
-            // Закрываем все остальные открытые задачи
-            const currentlyOpen = document.querySelector('.task-details.expanded');
-            if (currentlyOpen && currentlyOpen !== detailsContainer) {
-                currentlyOpen.classList.remove('expanded');
-                setTimeout(() => { if (currentlyOpen) currentlyOpen.innerHTML = ''; }, 300);
-            }
 
-            // Если контент пуст, рендерим его
-            if (!detailsContainer.innerHTML) {
-                console.log('[CLICK HANDLER] > Task details are empty, rendering...');
-                // --- ИСПРАВЛЕНИЕ: Ищем родителя с классом .task-container, а не .task ---
-                const taskContainer = taskHeader.closest('.task-container');
-                if (!taskContainer) {
-                    console.error('[CLICK HANDLER] > CRITICAL: Could not find parent .task-container for the clicked header. This is likely the cause of the issue.');
-                    return;
+            // Проверяем несохраненные изменения перед тем, как открыть новую задачу
+            const openNewTask = () => {
+                // Закрываем все остальные открытые задачи
+                const currentlyOpen = document.querySelector('.task-details.expanded');
+                if (currentlyOpen && currentlyOpen !== detailsContainer) {
+                    currentlyOpen.classList.remove('expanded');
+                    setTimeout(() => { if (currentlyOpen) currentlyOpen.innerHTML = ''; }, 300);
                 }
-                const taskId = taskContainer.dataset.taskId;
-                const { task } = store.findTask(taskId);
-                const appData = store.getAppData();
-                render.renderTaskDetails(detailsContainer, task, appData.allUsers, appData.userRole);
-            }
 
-            detailsContainer.classList.toggle('expanded');
-            console.log(`[CLICK HANDLER] > Toggled .expanded on task details. Is now expanded: ${detailsContainer.classList.contains('expanded')}`);
-            if (!detailsContainer.classList.contains('expanded')) {
-                setTimeout(() => { if (detailsContainer) detailsContainer.innerHTML = ''; }, 300);
+                // Если контент пуст, рендерим его
+                if (!detailsContainer.innerHTML) {
+                    console.log('[CLICK HANDLER] > Task details are empty, rendering...');
+                    const taskContainer = taskHeader.closest('.task-container');
+                    if (!taskContainer) {
+                        console.error('[CLICK HANDLER] > CRITICAL: Could not find parent .task-container for the clicked header.');
+                        return;
+                    }
+                    const taskId = taskContainer.dataset.taskId;
+                    const { task } = store.findTask(taskId);
+                    const appData = store.getAppData();
+                    render.renderTaskDetails(detailsContainer, task, appData.allUsers, appData.userRole);
+                }
+
+                detailsContainer.classList.toggle('expanded');
+                console.log(`[CLICK HANDLER] > Toggled .expanded on task details. Is now expanded: ${detailsContainer.classList.contains('expanded')}`);
+                if (!detailsContainer.classList.contains('expanded')) {
+                    setTimeout(() => { if (detailsContainer) detailsContainer.innerHTML = ''; }, 300);
+                }
             }
+            
+            uiUtils.checkForUnsavedChanges(openNewTask);
             return;
         }
 
@@ -120,7 +142,9 @@ function initializeApp() {
         // --- Обработчик сворачивания/разворачивания проекта ---
         const projectHeader = event.target.closest('.project-header');
         if (projectHeader) {
-            console.log('[CLICK HANDLER] > Matched: Project Header');
+            // --- ОТЛАДОЧНЫЙ ЛОГ: Выводим ID проекта, по которому кликнули ---
+            const projectId = projectHeader.closest('.project-card')?.dataset.projectId;
+            console.log(`[CLICK HANDLER] > Matched: Project Header for project ID: ${projectId}`);
             const projectElement = projectHeader.closest('.project-card');
             if (!projectElement) {
                 console.error('[CLICK HANDLER] > Could not find parent .project-card for the clicked header.');
@@ -131,7 +155,12 @@ function initializeApp() {
                 console.error('[CLICK HANDLER] > Could not find .project-content within the card.');
                 return;
             }
+            const expandIcon = projectHeader.querySelector('.expand-icon');
+
             projectBody.classList.toggle('expanded');
+            if (expandIcon) {
+                expandIcon.classList.toggle('rotated-180');
+            }
             console.log(`[CLICK HANDLER] > Toggled .expanded on project content. Is now expanded: ${projectBody.classList.contains('expanded')}`);
             return;
         }
@@ -163,20 +192,28 @@ function initializeApp() {
         if (targetButton.closest('.view-modes')) {
             viewToolbar.querySelectorAll('.view-modes .view-btn').forEach(btn => btn.classList.remove('active'));
             targetButton.classList.add('active');
-            rerenderApp();
+            // Проверяем изменения перед перерисовкой
+            uiUtils.checkForUnsavedChanges(rerenderApp);
         }
     });
 
     // --- ЛОГИКА DRAG AND DROP ---
     let draggedElement = null;
+    let currentAfterElement = null; // Переменная для отслеживания текущего элемента, ПОСЛЕ которого будет вставка
     mainContainer.addEventListener('dragstart', (e) => {
         if (document.querySelector('.task-details.edit-mode')) {
+            // Запрещаем перетаскивание в режиме редактирования
             e.preventDefault();
             return;
         }
         const draggableCard = e.target.closest('[draggable="true"]');
         if (!draggableCard) return;
         draggedElement = draggableCard;
+        currentAfterElement = null; // Сбрасываем состояние при начале перетаскивания
+        console.log(`[DRAG&DROP] > START Dragging task ID: ${draggedElement.dataset.taskId}`, { element: draggedElement });
+        // Добавляем класс, чтобы подсветить все валидные зоны для броска
+        const statusGroup = draggedElement.dataset.statusGroup;
+        document.querySelectorAll(`.tasks-list[data-status-group="${statusGroup}"]`).forEach(el => el.classList.add('drop-zone'));
         setTimeout(() => { if (draggedElement) draggedElement.classList.add('dragging'); }, 0);
     });
 
@@ -194,10 +231,30 @@ function initializeApp() {
     mainContainer.addEventListener('dragover', (e) => {
         e.preventDefault();
         if (!draggedElement) return;
-        const container = e.target.closest(`.tasks-list[data-status-group="${draggedElement.dataset.statusGroup}"]`);
-        document.querySelectorAll('.drag-over, .drag-over-end').forEach(el => el.classList.remove('drag-over', 'drag-over-end'));
-        if (!container) return;
+        // Ищем контейнер, который является валидной зоной для броска
+        const container = e.target.closest('.tasks-list.drop-zone');
+
+        // Если мышь вне валидной зоны, убираем подсветку и выходим
+        if (!container) {
+            if (currentAfterElement !== null) { // Проверяем, есть ли что очищать
+                document.querySelectorAll('.drag-over, .drag-over-end').forEach(el => el.classList.remove('drag-over', 'drag-over-end'));
+                currentAfterElement = null; // Сбрасываем состояние
+            }
+            return;
+        }
+
         const afterElement = getDragAfterElement(container, e.clientY);
+
+        // --- ОПТИМИЗАЦИЯ: Выполняем действия, только если целевой элемент изменился ---
+        if (afterElement === currentAfterElement) {
+            return; // Ничего не изменилось, выходим
+        }
+
+        currentAfterElement = afterElement; // Обновляем состояние
+        console.log(`[DRAG&DROP] > OVER container: "${container.dataset.statusGroup}", afterElement:`, afterElement); // Логируем только при изменении
+
+        // Убираем старую подсветку и добавляем новую
+        document.querySelectorAll('.drag-over, .drag-over-end').forEach(el => el.classList.remove('drag-over', 'drag-over-end'));
         if (afterElement) {
             afterElement.classList.add('drag-over');
         } else {
@@ -207,28 +264,30 @@ function initializeApp() {
     mainContainer.addEventListener('drop', (e) => {
         e.preventDefault();
         if (!draggedElement) return;
-        const dropContainer = e.target.closest(`.tasks-list[data-status-group="${draggedElement.dataset.statusGroup}"]`);
+        // Бросаем только в подсвеченную зону
+        const dropContainer = e.target.closest('.tasks-list.drop-zone');
         if (!dropContainer) {
              mainContainer.dispatchEvent(new Event('dragend'));
              return;
-        };
+        }
+        console.log(`[DRAG&DROP] > DROP in container: "${dropContainer.dataset.statusGroup}"`);
         const afterElement = getDragAfterElement(dropContainer, e.clientY);
         if (afterElement) {
             dropContainer.insertBefore(draggedElement, afterElement);
         } else {
             dropContainer.appendChild(draggedElement);
         }
-        const appData = store.getAppData();
-        const groupName = !['owner', 'admin'].includes(appData.userRole) 
-            ? appData.userName 
-            : (draggedElement.closest('.project-card')?.querySelector('.project-header h2')?.textContent || 'Unknown Project');
+        // Собираем обновленный список ID задач в этой группе
         const updatedTaskIds = Array.from(dropContainer.querySelectorAll('[draggable="true"]')).map(card => card.dataset.taskId);
-        handlers.handleDragDrop(groupName, updatedTaskIds, appData.userRole);
+        // Вызываем обработчик, передавая только нужные данные
+        handlers.handleDragDrop(updatedTaskIds);
     });
     mainContainer.addEventListener('dragend', () => {
         if (draggedElement) draggedElement.classList.remove('dragging');
-        document.querySelectorAll('.drag-over, .drag-over-end').forEach(el => el.classList.remove('drag-over', 'drag-over-end'));
+        console.log('[DRAG&DROP] > END Drag operation.');
+        document.querySelectorAll('.drag-over, .drag-over-end, .drop-zone').forEach(el => el.classList.remove('drag-over', 'drag-over-end', 'drop-zone'));
         draggedElement = null;
+        currentAfterElement = null; // Сбрасываем состояние в конце
         uiUtils.showFab();
     });
 
@@ -256,23 +315,35 @@ function initializeApp() {
     }
 
     // 3. Apply the stage filters to the selected list of tasks.
-    const filteredTasks = activeFilters.length > 0 ?
-        tasksToRender.filter(task => task && task.stage && activeFiltersSet.has(String(task.stage.id))) :
-        tasksToRender;
+    // --- ИСПРАВЛЕНИЕ: Убираем тернарный оператор. Фильтрация должна работать всегда. ---
+    console.log(`[MAIN] > Применение фильтра по этапам. Активные ID:`, Array.from(activeFiltersSet));
+    const filteredTasks = tasksToRender.filter(task => {
+        const hasStage = task && task.stage && task.stage.id;
+        const isIncluded = hasStage && activeFiltersSet.has(String(task.stage.id));
+        // console.log(`[MAIN] > Проверка задачи ID ${task.id}: этап ID ${hasStage ? task.stage.id : 'N/A'}. Включена в фильтр: ${isIncluded}`);
+        return isIncluded;
+    });
+    console.log(`[MAIN] > Задач после фильтрации по этапам: ${filteredTasks.length}`);
 
     if (activeModeBtn.id === 'view-btn-projects') {
-        const filteredProjects = JSON.parse(JSON.stringify(appData.projects));
+        let projectsToRender = JSON.parse(JSON.stringify(appData.projects));
         const filteredTasksSet = new Set(filteredTasks.map(t => t.id));
-        filteredProjects.forEach(p => {
+        
+        // Сначала отфильтровываем задачи внутри каждого проекта
+        projectsToRender.forEach(p => {
             // --- ИСПРАВЛЕНИЕ: Проверяем, что p.tasks существует, прежде чем фильтровать ---
             // Если p.tasks отсутствует после JSON.parse, инициализируем его как пустой массив.
             if (p.tasks) {
-                p.tasks = p.tasks.filter(t => filteredTasksSet.has(t.taskId));
+                p.tasks = p.tasks.filter(t => filteredTasksSet.has(t.id));
             } else {
                 p.tasks = [];
             }
         });
-        render.renderProjects(filteredProjects, appData.userName, appData.userRole, {});
+        // Затем отфильтровываем сами проекты, если в них не осталось задач после фильтрации по этапам
+        projectsToRender = projectsToRender.filter(p => p.tasks.length > 0);
+        console.log(`[MAIN] > Проектов для рендеринга после фильтрации: ${projectsToRender.length}`);
+
+        render.renderProjects(projectsToRender, appData.userName, appData.userRole, {});
     } else {
         render.renderTasksView(filteredTasks, store.getAllStatuses(), activeModeBtn.id === 'view-btn-my-tasks');
     }

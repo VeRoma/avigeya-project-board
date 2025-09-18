@@ -9,12 +9,9 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/api/v1/**") // Разрешаем доступ ко всем эндпоинтам нашего API
-                .allowedOrigins(
-                        "http://localhost:8000", // Адрес, с которого будет запускаться фронтенд
-                        "http://127.0.0.1:8000")
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // Разрешенные HTTP-методы
-                .allowedHeaders("*") // Разрешаем все заголовки
-                .allowCredentials(true); // Разрешаем передачу credentials (например, cookie)
+        registry.addMapping("/api/**") // Применяем ко всем эндпоинтам, начинающимся с /api/
+                .allowedOrigins("*")       // Разрешаем запросы с любого источника
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // Разрешаем все основные методы
+                .allowedHeaders("*");      // Разрешаем все заголовки
     }
 }

@@ -35,18 +35,19 @@ async function fetchApi(endpoint, options = {}) {
         if (!response.ok) {
             // --- УЛУЧШЕННОЕ ЛОГИРОВАНИЕ ОШИБОК ---
             // Попытаемся прочитать тело ответа как текст, так как ошибка может быть не в формате JSON
+            console.error(`[API] < Ошибка! Статус: ${response.status}. Пытаюсь прочитать тело ответа...`);
             const errorText = await response.text();
-            console.error(`--- ERROR RESPONSE BODY (Status: ${response.status}) ---`);
+            console.error(`--- НАЧАЛО ТЕЛА ОШИБКИ (Status: ${response.status}) ---`);
             console.error(errorText);
-            console.error(`--- END ERROR RESPONSE BODY ---`);
+            console.error(`--- КОНЕЦ ТЕЛА ОШИБКИ ---`);
 
             // Попробуем распарсить как JSON для стандартной обработки
             try {
                 const errorData = JSON.parse(errorText);
-                throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                throw new Error(errorData.message || `HTTP ошибка! Статус: ${response.status}`);
             } catch (e) {
                 // Если это не JSON, выбрасываем общую ошибку
-                throw new Error(`HTTP error! status: ${response.status}. See console for non-JSON error body.`);
+                throw new Error(`HTTP ошибка! Статус: ${response.status}. Тело ответа не в формате JSON (см. консоль).`);
             }
         }
 
@@ -55,7 +56,18 @@ async function fetchApi(endpoint, options = {}) {
             return { status: 'success' };
         }
 
-        return await response.json();
+        // --- ИСПРАВЛЕНИЕ: Обработка пустых ответов ---
+        // Сначала получаем ответ как текст
+        const responseText = await response.text();
+
+        // Если текст пустой (как в нашем случае с PUT /priorities), 
+        // возвращаем успешный объект, не пытаясь парсить JSON.
+        if (!responseText) {
+            return { status: 'success' };
+        }
+
+        // Если текст есть, парсим его как JSON
+        return JSON.parse(responseText);
     } catch (error) {
         console.error(`API call to ${endpoint} failed:`, error);
         // Перебрасываем ошибку дальше, чтобы ее можно было обработать в UI
@@ -79,14 +91,13 @@ export const getAppData = (payload) => {
  * Сохраняет изменения в существующей задаче.
  * @param {object} payload - Объект с данными задачи.
  */
-export const saveTask = (payload) => {
-    const { taskData } = payload;
-    // REST-подход: используем PUT для обновления существующего ресурса по его ID
-    return fetchApi(`/tasks/${taskData.taskId}`, {
-        method: 'PUT',
-        body: JSON.stringify(taskData),
+export function saveTask(payload) {
+    // Используем PUT для идемпотентного обновления существующего ресурса
+    return fetchApi(`/tasks/${payload.id}`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
     });
-};
+}
 
 /**
  * Добавляет новую задачу.
@@ -96,7 +107,7 @@ export const addTask = (payload) => {
     // REST-подход: используем POST для создания нового ресурса
     return fetchApi('/tasks', {
         method: 'POST',
-        body: JSON.stringify(payload.newTaskData),
+        body: JSON.stringify(payload),
     });
 };
 
@@ -112,16 +123,38 @@ export const deleteTask = (payload) => {
 };
 
 /**
- * Обновляет приоритеты (порядок) и статусы задач.
- * @param {object} payload - Объект, содержащий массив задач для обновления.
+ * Отправляет на сервер новый порядок задач для обновления их приоритетов.
+ * @param {string[]} taskIds - Массив ID задач в новом порядке.
+ * @returns {Promise<object>}
  */
-export const updatePriorities = (payload) => {
-    // Эндпоинт для массового обновления
-    return fetchApi('/tasks/reorder', {
+export async function updateTaskPriorities(taskIds) {
+    // Используем новый эндпоинт, который мы создали на бэкенде
+    return fetchApi(`/tasks/priorities`, {
         method: 'PUT',
-        body: JSON.stringify(payload.tasks),
+        body: JSON.stringify(taskIds),
     });
+}
+
+/**
+ * Отправляет на сервер список задач для пакетного обновления их статусов и/или приоритетов.
+ * @param {Array<object>} updates - Массив объектов, каждый из которых содержит taskId, priority и statusId.
+ * @returns {Promise<object>}
+ */
+export async function batchUpdateTaskStatusAndPriorities(updates) {
+    return fetchApi(`/tasks/batch-update`, {
+        method: 'PUT',
+        body: JSON.stringify(updates),
+    });
+}
+
+// Старая функция updatePriorities больше не используется и может быть удалена.
+// Она была предназначена для другого эндпоинта и формата данных.
+// Если вы хотите сохранить ее для справки, оставьте закомментированной.
+/*
+export const updatePriorities = (payload) => {
+    return fetchApi('/tasks/reorder', { method: 'PUT', body: JSON.stringify(payload.tasks) });
 };
+*/
 
 /**
  * Загружает все связи (участники проектов, этапы проектов и т.д.).
@@ -138,7 +171,7 @@ export const fetchAllConnections = () => {
 export const updateProjectMembers = (projectId, payload) => {
     return fetchApi(`/projects/${projectId}/members`, {
         method: 'PUT',
-        body: JSON.stringify(payload.memberIds),
+        body: JSON.stringify(payload),
     });
 };
 
@@ -150,7 +183,7 @@ export const updateProjectMembers = (projectId, payload) => {
 export const updateProjectStages = (projectId, payload) => {
     return fetchApi(`/projects/${projectId}/stages`, {
         method: 'PUT',
-        body: JSON.stringify(payload.stageIds),
+        body: JSON.stringify(payload),
     });
 };
 

@@ -23,4 +23,8 @@ public class AppDataDto {
     private List<UserDto> allUsers;
     private List<StatusDto> allStatuses;
     private List<StageDto> allStages;
+
+    // Данные о связях
+    private List<ProjectMemberDto> projectMembers;
+    private List<ProjectStageDto> projectStages;
 }

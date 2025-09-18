@@ -6,11 +6,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "project_members")
+@Table(name = "project_stages")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ProjectMember {
+public class ProjectStage {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -21,9 +21,16 @@ public class ProjectMember {
     private Project project;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @JoinColumn(name = "stage_id", nullable = false)
+    private Stage stage;
 
     @Column(name = "is_active")
     private Boolean isActive;
+
+    // Конструктор для удобного создания без ID
+    public ProjectStage(Project project, Stage stage, Boolean isActive) {
+        this.project = project;
+        this.stage = stage;
+        this.isActive = isActive;
+    }
 }

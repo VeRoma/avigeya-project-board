@@ -7,8 +7,9 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class StageDto {
+public class ProjectStageDto {
     private Long id;
-    private String name;
-    private String description;
+    private Long projectId;
+    private Long stageId;
+    private Boolean isActive;
 }

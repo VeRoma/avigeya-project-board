@@ -1,3 +1,6 @@
+import * as store from '../store.js';
+import * as handlers from '../handlers.js';
+
 const toast = document.getElementById('toast-notification');
 const fabButton = document.getElementById('fab-button');
 const fabIconContainer = document.getElementById('fab-icon-container');
@@ -13,15 +16,12 @@ const ICONS = {
 
 let saveTimeout;
 let currentFabClickHandler = null; // Переменная для хранения текущего обработчика
+let currentBackButtonHandler = null; // Переменная для хранения обработчика кнопки "Назад"
 
 export function showToast(message, type = 'info') {
     toast.textContent = message;
-    
-    if (type === 'success') {
-        toast.style.backgroundColor = '#28a745';
-    } else {
-        toast.style.backgroundColor = 'var(--tg-theme-button-color, #007bff)';
-    }
+    toast.classList.remove('success', 'info'); // Сбрасываем предыдущие классы типа
+    toast.classList.add(type === 'success' ? 'success' : 'info');
 
     toast.classList.add('show');
     clearTimeout(saveTimeout);
@@ -32,7 +32,13 @@ export function showToast(message, type = 'info') {
 
 export function showLoading() {
     if (app) app.classList.remove('hidden');
-    if (mainContainer) mainContainer.innerHTML = '<div class="text-center py-10"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-500 mx-auto mt-4"></div></div>';
+    if (mainContainer) {
+        mainContainer.innerHTML = ''; // Очищаем контейнер
+        const loadingContainer = document.createElement('div');
+        loadingContainer.className = 'text-center py-10';
+        loadingContainer.innerHTML = '<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-500 mx-auto mt-4"></div>';
+        mainContainer.appendChild(loadingContainer);
+    }
 }
 
 export function hideLoading() {
@@ -40,8 +46,11 @@ export function hideLoading() {
 }
 
 export function showDataLoadError(error) {
+    if (!mainContainer) return;
     const errorMessage = typeof error === 'object' ? error.message : String(error);
-    mainContainer.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg"><p class="font-bold">Ошибка загрузки</p><p class="text-sm mt-1">${errorMessage}</p></div>`;
+    mainContainer.innerHTML = ''; // Очищаем
+    mainContainer.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg"><p class="font-bold">Ошибка загрузки</p><p class="text-sm mt-1"></p></div>`;
+    mainContainer.querySelector('.text-sm').textContent = errorMessage;
 }
 
 export function updateFabButtonUI(isEditMode, saveHandler, addHandler) {
@@ -95,12 +104,19 @@ export function setupUserInfo(nameFromSheet) {
 }
 
 export function hideFab() {
-    if(fabButton) fabButton.style.display = 'none';
+    if(fabButton) fabButton.classList.add('hidden');
 }
 
 export function showFab() {
-    if(fabButton && fabButton.style.display === 'flex') return;
-    if(fabButton) fabButton.style.display = 'flex';
+    if(fabButton) fabButton.classList.remove('hidden');
+}
+
+export function setBackButtonHandler(handler) {
+    currentBackButtonHandler = handler;
+}
+
+export function getBackButtonHandler() {
+    return currentBackButtonHandler;
 }
 
 export function enterEditMode(detailsContainer, onBackCallback) {
@@ -110,13 +126,13 @@ export function enterEditMode(detailsContainer, onBackCallback) {
     tg.BackButton.show();
 }
 
-export function exitEditMode(detailsContainer) {
+export function exitEditMode(detailsContainer, onBackCallback) {
     const tg = window.Telegram.WebApp;
     if (detailsContainer) {
         detailsContainer.classList.remove('edit-mode');
     }
     tg.BackButton.hide();
-    tg.BackButton.offClick(exitEditMode);
+    if (onBackCallback) tg.BackButton.offClick(onBackCallback);
 }
 
 /**
@@ -211,4 +227,120 @@ export function collapseAllTaskDetails() {
         // Очищаем содержимое, чтобы убрать "остаточную" верхушку
         detailsContainer.innerHTML = ''; 
     });
+}
+
+/**
+ * Сравнивает оригинальные данные задачи с текущими данными из формы редактирования.
+ * @param {object} originalTask - Оригинальный объект задачи из store.
+ * @param {object} currentData - Объект с текущими данными из DOM.
+ * @returns {boolean} - true, если есть изменения, иначе false.
+ */
+function haveChanges(originalTask, currentData) {
+    if (!originalTask) return false;
+
+    // Простое сравнение строковых и числовых полей
+    if (originalTask.name !== currentData.name) return true;
+    if ((originalTask.message || '') !== (currentData.message || '')) return true;
+    if (String(originalTask.projectId) !== String(currentData.projectId)) return true;
+    if (originalTask.stage && String(originalTask.stage.id) !== String(currentData.stageId)) return true;
+    if (originalTask.status && String(originalTask.status.id) !== String(currentData.status.id)) return true;
+
+    // Сравнение участников
+    const originalMemberIds = new Set((originalTask.members || []).map(m => String(m.id)));
+    const currentMemberIds = new Set((currentData.members || []).map(m => String(m.id)));
+    if (originalMemberIds.size !== currentMemberIds.size) return true;
+    for (const id of originalMemberIds) {
+        if (!currentMemberIds.has(id)) return true;
+    }
+
+    return false;
+}
+
+/**
+ * Собирает текущие данные из полей редактирования активной задачи.
+ * @param {HTMLElement} activeEditElement - DOM-элемент контейнера .task-details.edit-mode.
+ * @returns {object | null} - Объект с данными задачи или null, если элемент не найден.
+ */
+export function getCurrentTaskDataFromDOM(activeEditElement) {
+    if (!activeEditElement) return null;
+
+    const taskId = activeEditElement.id.replace('task-details-', '');
+    const { task: originalTask } = store.findTask(taskId);
+    if (!originalTask) return null;
+
+    const memberIds = (activeEditElement.querySelector('.task-responsible-view').dataset.memberIds || '').split(',').filter(Boolean);
+    const members = store.getUsersByIds(memberIds);
+
+    // --- ЛОГ: Проверяем, что считывается из data-атрибута ---
+    console.log(`[UTILS] > getCurrentTaskDataFromDOM: Считывание data-version="${activeEditElement.dataset.version}"`);
+
+    return {
+        id: taskId,
+        name: activeEditElement.querySelector('.task-name-edit').value,
+        message: activeEditElement.querySelector('.task-message-edit').value,
+        projectId: activeEditElement.querySelector('.task-project-view').dataset.projectId,
+        stageId: activeEditElement.querySelector('.task-stage-view').dataset.stageId,
+        status: store.findStatusByName(activeEditElement.querySelector('.task-status-view').textContent),
+        curator: members.length > 0 ? members[0] : null,
+        members: members,
+        version: parseInt(activeEditElement.dataset.version, 10),
+        author: originalTask.author
+    };
+}
+
+
+/**
+ * Проверяет наличие несохраненных изменений в активной задаче.
+ * Если изменения есть, предлагает пользователю сохранить их.
+ * @param {function} proceedCallback - Функция, которая будет вызвана, если можно продолжить действие (нет изменений или пользователь сделал выбор).
+ */
+export function checkForUnsavedChanges(proceedCallback) {
+    const tg = window.Telegram.WebApp;
+    const activeEditElement = document.querySelector('.task-details.edit-mode');
+    if (!activeEditElement) {
+        proceedCallback();
+        return;
+    }
+
+    const taskId = activeEditElement.id.replace('task-details-', '');
+    const { task: originalTask } = store.findTask(taskId);
+
+    // Используем новую универсальную функцию для сбора данных
+    const currentData = getCurrentTaskDataFromDOM(activeEditElement);
+
+    if (!currentData || !haveChanges(originalTask, currentData)) {
+        proceedCallback();
+        return;
+    }
+
+    const handleConfirmation = (confirmed) => {
+        if (confirmed) {
+            // Пользователь нажал "Сохранить"
+            handlers.handleSaveActiveTask(currentData)
+                .then(success => {
+                    if (success) {
+                        // После успешного сохранения выполняем отложенное действие
+                        proceedCallback();
+                    }
+                    // Если сохранение не удалось, остаемся на месте, ошибка уже показана в handleSaveActiveTask
+                });
+        } else {
+            // Пользователь нажал "Не сохранять"
+            // Просто выходим из режима редактирования и выполняем отложенное действие
+            const backButtonHandler = getBackButtonHandler();
+            exitEditMode(activeEditElement, backButtonHandler);
+            proceedCallback();
+        }
+    };
+
+    // --- ИСПРАВЛЕНИЕ: Проверяем поддержку tg.showConfirm и используем window.confirm как запасной вариант для десктопа ---
+    // Оборачиваем вызов в try-catch, так как в некоторых версиях сам факт обращения к tg.showConfirm может вызывать ошибку, если его нет.
+    try {
+        // Попытка использовать нативный метод Telegram
+        tg.showConfirm("У вас есть несохраненные изменения. Сохранить их?", handleConfirmation);
+    } catch (e) {
+        // Если нативный метод не поддерживается, используем стандартный браузерный confirm
+        const userConfirmed = window.confirm("У вас есть несохраненные изменения. Сохранить их?");
+        handleConfirmation(userConfirmed);
+    }
 }
