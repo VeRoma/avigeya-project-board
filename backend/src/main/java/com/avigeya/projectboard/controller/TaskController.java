@@ -1,6 +1,8 @@
 package com.avigeya.projectboard.controller;
 
 import com.avigeya.projectboard.dto.TaskBatchUpdateRequest;
+import com.avigeya.projectboard.dto.TaskDto;
+import com.avigeya.projectboard.dto.ApiResponse;
 import com.avigeya.projectboard.dto.TaskMemberUpdateRequest;
 import com.avigeya.projectboard.service.TaskService;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +17,12 @@ import java.util.List;
 public class TaskController {
 
     private final TaskService taskService;
+
+    @PutMapping("/{taskId}")
+    public ResponseEntity<ApiResponse> updateTask(@PathVariable Long taskId, @RequestBody TaskDto taskDto) {
+        TaskDto updatedTask = taskService.updateTask(taskId, taskDto);
+        return ResponseEntity.ok(new ApiResponse("success", "Task updated successfully", updatedTask));
+    }
 
     /**
      * Обновляет приоритеты для списка задач.

@@ -1,14 +1,13 @@
 package com.avigeya.projectboard.service;
 
-import com.avigeya.projectboard.domain.Status;
-import com.avigeya.projectboard.domain.Task;
-import com.avigeya.projectboard.domain.TaskMember;
-import com.avigeya.projectboard.domain.User;
+import com.avigeya.projectboard.domain.*;
 import com.avigeya.projectboard.dto.TaskBatchUpdateRequest;
-import com.avigeya.projectboard.repository.StatusRepository;
-import com.avigeya.projectboard.repository.TaskRepository;
-import com.avigeya.projectboard.repository.TaskMemberRepository;
-import com.avigeya.projectboard.service.TaskService;
+import com.avigeya.projectboard.dto.TaskDto;
+import com.avigeya.projectboard.dto.StageDto;
+import com.avigeya.projectboard.dto.UserDto;
+import com.avigeya.projectboard.dto.StatusDto;
+import com.avigeya.projectboard.exception.ResourceNotFoundException;
+import com.avigeya.projectboard.repository.*;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +28,64 @@ public class TaskServiceImpl implements TaskService {
     private final TaskRepository taskRepository;
     private final StatusRepository statusRepository;
     private final TaskMemberRepository taskMemberRepository;
+    private final UserRepository userRepository;
+    private final ProjectRepository projectRepository;
+    private final StageRepository stageRepository;
+
+    @Override
+    @Transactional
+    public TaskDto updateTask(Long taskId, TaskDto taskDto) {
+        log.info("Updating task with ID: {}", taskId);
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + taskId));
+
+        // Update simple fields
+        task.setName(taskDto.getName());
+        task.setMessage(taskDto.getMessage());
+        task.setStartDate(taskDto.getStartDate());
+        task.setFinishDate(taskDto.getFinishDate());
+        task.setVersion(taskDto.getVersion()); // Ensure version is passed for optimistic locking
+
+        // Update related entities
+        if (taskDto.getStatus() != null && taskDto.getStatus().getId() != null) {
+            Status status = statusRepository.findById(taskDto.getStatus().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Status not found with id: " + taskDto.getStatus().getId()));
+            task.setStatus(status);
+        }
+
+        if (taskDto.getProjectId() != null) {
+            Project project = projectRepository.findById(taskDto.getProjectId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Project not found with id: " + taskDto.getProjectId()));
+            task.setProject(project);
+        }
+
+        if (taskDto.getStage() != null && taskDto.getStage().getId() != null) {
+            Stage stage = stageRepository.findById(taskDto.getStage().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Stage not found with id: " + taskDto.getStage().getId()));
+            task.setStage(stage);
+        }
+
+        // Update members and curator
+        if (taskDto.getMembers() != null) {
+            if (taskDto.getAuthor() != null && taskDto.getAuthor().getId() != null) {
+                User author = userRepository.findById(taskDto.getAuthor().getId())
+                        .orElseThrow(() -> new ResourceNotFoundException(
+                                "Author not found with id: " + taskDto.getAuthor().getId()));
+                task.setAuthor(author);
+            }
+            // --- ИСПРАВЛЕНИЕ: Безопасно получаем ID куратора, избегая NullPointerException
+            // ---
+            updateTaskMembers(taskId, taskDto.getCurator() != null ? taskDto.getCurator().getId() : null,
+                    taskDto.getMembers().stream().map(UserDto::getId).toList(), "SYSTEM");
+        }
+
+        Task updatedTask = taskRepository.save(task);
+        log.info("Task with ID: {} successfully updated to version {}", updatedTask.getId(), updatedTask.getVersion());
+        return convertToDto(updatedTask);
+    }
 
     @Override
     @Transactional
@@ -122,5 +179,39 @@ public class TaskServiceImpl implements TaskService {
         taskMemberRepository.deleteByTaskId(taskId);
         taskRepository.deleteById(taskId);
         log.info("Задача с ID {} была успешно удалена.", taskId);
+    }
+
+    /**
+     * Helper method to convert a Task entity to a TaskDto.
+     * 
+     * @param task The Task entity.
+     * @return The corresponding TaskDto.
+     */
+    private TaskDto convertToDto(Task task) {
+        TaskDto dto = new TaskDto();
+        dto.setId(task.getId());
+        dto.setName(task.getName());
+        dto.setMessage(task.getMessage());
+        dto.setPriority(task.getPriority());
+        dto.setStartDate(task.getStartDate());
+        dto.setFinishDate(task.getFinishDate());
+        dto.setVersion(task.getVersion());
+        dto.setProjectId(task.getProject().getId());
+
+        if (task.getStatus() != null) {
+            dto.setStatus(new StatusDto(task.getStatus().getId(), task.getStatus().getName(),
+                    task.getStatus().getIcon(), task.getStatus().getOrder()));
+        }
+        if (task.getStage() != null) {
+            dto.setStage(
+                    new StageDto(task.getStage().getId(), task.getStage().getName(), task.getStage().getDescription()));
+        }
+        if (task.getAuthor() != null) {
+            dto.setAuthor(
+                    new UserDto(task.getAuthor().getId(), task.getAuthor().getName(), task.getAuthor().getRole()));
+        }
+        // Note: Members and Curator are handled by the getAppData flow, so we don't
+        // need to map them here for the return trip.
+        return dto;
     }
 }

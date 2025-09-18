@@ -1,10 +1,13 @@
 package com.avigeya.projectboard.service;
 
 import com.avigeya.projectboard.dto.TaskBatchUpdateRequest;
+import com.avigeya.projectboard.dto.TaskDto;
 
 import java.util.List;
 
 public interface TaskService {
+    TaskDto updateTask(Long taskId, TaskDto taskDto); // This line is already present, no change needed.
+
     void updateTaskPriorities(List<Long> taskIds);
 
     /**

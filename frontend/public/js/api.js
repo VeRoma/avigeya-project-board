@@ -94,7 +94,7 @@ export const getAppData = (payload) => {
 export function saveTask(payload) {
     // Используем PUT для идемпотентного обновления существующего ресурса
     return fetchApi(`/tasks/${payload.id}`, {
-        method: 'POST',
+        method: 'PUT',
         body: JSON.stringify(payload),
     });
 }
