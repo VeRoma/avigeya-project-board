@@ -65,11 +65,9 @@ export function renderProjects(projects, userName, userRole, expandedState = {},
         
         // Сортируем задачи внутри проекта
         project.tasks.sort((a, b) => {
-            // --- ИСПРАВЛЕНИЕ: Обращаемся к a.status.name, так как status - это объект ---
-            const statusA = a.status ? a.status.name : '';
-            const statusB = b.status ? b.status.name : '';
-            const orderA = (statuses.find(s => s.name === statusA) || { order: 999 }).order;
-            const orderB = (statuses.find(s => s.name === statusB) || { order: 999 }).order;
+            // --- ИСПРАВЛЕНИЕ: Сортируем по числовому полю order, а не по имени статуса ---
+            const orderA = a.status ? a.status.order : 999;
+            const orderB = b.status ? b.status.order : 999;
             if (orderA !== orderB) return orderA - orderB;
             return (a.priority || 999) - (b.priority || 999);
         });
@@ -146,7 +144,11 @@ export function renderProjects(projects, userName, userRole, expandedState = {},
                 const projectName = titleElement.textContent;
                 if (expandedState[projectName] === true) {
                     const content = card.querySelector('.project-content');
-                    if (content) content.classList.add('expanded');
+                    const icon = card.querySelector('.expand-icon');
+                    if (content) {
+                        content.classList.add('expanded');
+                    }
+                    if (icon) icon.classList.add('rotated-180');
                 }
             }
         });
@@ -187,6 +189,22 @@ export function renderTaskDetails(detailsContainer, task, allUsers, userRole) {
         </div>`;
     }
 
+    // --- ИСПРАВЛЕНИЕ: Создаем HTML для переключателя статусов ---
+    // <span class="toggle-text">${status.name}</span>
+    const allStatuses = store.getAllStatuses();
+
+    const statusToggleHtml = allStatuses.map(status => {
+        const isActive = task.status && task.status.id === status.id ? 'active' : '';
+        return `
+            <div class="toggle-option ${isActive}" data-status-id="${status.id}" data-status-name="${status.name}">
+                <span class="toggle-icon">${status.icon}</span>
+                
+            </div>
+        `;
+    }).join('');
+    // ---------------------------------------------------------
+
+    // --- ИЗМЕНЕНИЕ: Обновляем HTML структуры для редактирования задачи ---
     detailsContainer.innerHTML = `
         <div class="p-4 rounded-lg space-y-4 edit-container">
             <div class="flex justify-between items-start">
@@ -198,10 +216,18 @@ export function renderTaskDetails(detailsContainer, task, allUsers, userRole) {
             </div>
             <div class="edit-field edit-field-block"><label class="text-xs font-medium text-gray-500">Наименование</label><input type="text" class="details-input task-name-edit mt-1" value="${task.name}"></div>
             <div><label class="text-xs font-medium text-gray-500">Сообщение исполнителю</label><p class="view-field whitespace-pre-wrap mt-1">${task.message || '...'}</p><textarea rows="3" class="edit-field edit-field-block details-input task-message-edit mt-1">${task.message || ''}</textarea></div>
-            <div><label class="text-xs font-medium text-gray-500">Статус</label>
-                <div class="view-field mt-1"><p class="task-status-view">${task.status ? task.status.name : 'Неизвестно'}</p></div>
-                <div class="edit-field modal-trigger-field mt-1 p-2 border rounded-md" data-modal-type="status" style="border-color: var(--tg-theme-hint-color);"><p class="task-status-view">${task.status ? task.status.name : 'Неизвестно'}</p><svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>
+
+            <div>
+                <label class="text-xs font-medium text-gray-500">
+                    Статус
+                </label>
+
+                
+                <div class="status-toggle">
+                    ${statusToggleHtml}
+                </div>
             </div>
+
             <div><label class="text-xs font-medium text-gray-500">Проект</label>
                 <div class="view-field mt-1"><p class="task-project-view">${store.getProjectNameById(task.projectId)}</p></div>
                 <div class="edit-field modal-trigger-field mt-1 p-2 border rounded-md" data-modal-type="project" style="border-color: var(--tg-theme-hint-color);"><p class="task-project-view">${store.getProjectNameById(task.projectId)}</p><svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>

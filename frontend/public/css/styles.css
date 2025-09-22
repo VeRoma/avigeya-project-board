@@ -318,18 +318,14 @@ body[style*="--tg-color-scheme: dark"] .task-status-checker {
     transition: background-color 0.2s, color 0.2s;
     user-select: none;
 
-    /* Новые стили для вертикального расположения */
+    /* --- ИСПРАВЛЕНИЕ: Приводим к единому виду --- */
     display: flex;
     flex-direction: column;
+    /* Иконка над текстом */
     align-items: center;
     justify-content: center;
     gap: 4px;
     /* Расстояние между иконкой и текстом */
-}
-
-.toggle-option .toggle-icon {
-    font-size: 1.5rem;
-    /* Увеличиваем иконку */
 }
 
 .toggle-option .toggle-text {

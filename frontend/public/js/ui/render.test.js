@@ -19,6 +19,7 @@ describe('renderProjects sorting logic', () => {
 
     // Перед каждым тестом настраиваем мок для store.getAllStatuses
     beforeEach(() => {
+        // Мокируем статусы, которые нужны для сортировки
         const mockStatuses = [
             { name: 'В работе',     icon: '🛠️', order: 1 },
             { name: 'К выполнению', icon: '📥', order: 2 },
@@ -27,6 +28,11 @@ describe('renderProjects sorting logic', () => {
             { name: 'Выполнено',    icon: '✔️', order: 5 }
         ];
         store.getAllStatuses.mockReturnValue(mockStatuses);
+
+        // --- ИСПРАВЛЕНИЕ: Добавляем мок для getAppData, чтобы вернуть allProjects ---
+        store.getAppData.mockReturnValue({
+            allProjects: [{ id: 1, name: 'Тестовый проект' }]
+        });
     });
 
     // Тест №1: Проверяем базовую сортировку по приоритету внутри одной группы
@@ -58,11 +64,11 @@ describe('renderProjects sorting logic', () => {
         const projects = [{
             name: 'Тестовый проект',
             tasks: [
-                { taskId: 't4', name: 'Задача "К выполнению" P2', status: 'К выполнению', priority: 2 },
-                { taskId: 't2', name: 'Задача "В работе" P10', status: 'В работе', priority: 10 },
-                { taskId: 't5', name: 'Задача "На контроле" P1', status: 'На контроле', priority: 1 },
-                { taskId: 't1', name: 'Задача "В работе" P1', status: 'В работе', priority: 1 },
-                { taskId: 't3', name: 'Задача "К выполнению" P1', status: 'К выполнению', priority: 1 },
+                { taskId: 't4', name: 'Задача "К выполнению" P2', status: { name: 'К выполнению', order: 2 }, priority: 2 },
+                { taskId: 't2', name: 'Задача "В работе" P10', status: { name: 'В работе', order: 1 }, priority: 10 },
+                { taskId: 't5', name: 'Задача "На контроле" P1', status: { name: 'На контроле', order: 3 }, priority: 1 },
+                { taskId: 't1', name: 'Задача "В работе" P1', status: { name: 'В работе', order: 1 }, priority: 1 },
+                { taskId: 't3', name: 'Задача "К выполнению" P1', status: { name: 'К выполнению', order: 2 }, priority: 1 },
             ]
         }];
 

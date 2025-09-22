@@ -42,9 +42,13 @@ public class TaskServiceImpl implements TaskService {
         // Update simple fields
         task.setName(taskDto.getName());
         task.setMessage(taskDto.getMessage());
+        // --- ИСПРАВЛЕНИЕ: Обновляем приоритет, только если он был передан ---
+        if (taskDto.getPriority() != null) {
+            task.setPriority(taskDto.getPriority());
+        }
         task.setStartDate(taskDto.getStartDate());
         task.setFinishDate(taskDto.getFinishDate());
-        task.setVersion(taskDto.getVersion()); // Ensure version is passed for optimistic locking
+        // НЕ КОПИРУЕМ ВЕРСИЮ! Hibernate управляет этим полем.
 
         // Update related entities
         if (taskDto.getStatus() != null && taskDto.getStatus().getId() != null) {
@@ -70,16 +74,11 @@ public class TaskServiceImpl implements TaskService {
 
         // Update members and curator
         if (taskDto.getMembers() != null) {
-            if (taskDto.getAuthor() != null && taskDto.getAuthor().getId() != null) {
-                User author = userRepository.findById(taskDto.getAuthor().getId())
-                        .orElseThrow(() -> new ResourceNotFoundException(
-                                "Author not found with id: " + taskDto.getAuthor().getId()));
-                task.setAuthor(author);
-            }
-            // --- ИСПРАВЛЕНИЕ: Безопасно получаем ID куратора, избегая NullPointerException
-            // ---
+            // Автор задачи не меняется при обновлении, поэтому мы его не трогаем.
+            // Hibernate видит, что поле author не изменилось, и не будет его обновлять.
+            String modifierName = taskDto.getAuthor() != null ? taskDto.getAuthor().getName() : "SYSTEM";
             updateTaskMembers(taskId, taskDto.getCurator() != null ? taskDto.getCurator().getId() : null,
-                    taskDto.getMembers().stream().map(UserDto::getId).toList(), "SYSTEM");
+                    taskDto.getMembers().stream().map(UserDto::getId).toList(), modifierName);
         }
 
         Task updatedTask = taskRepository.save(task);
@@ -153,11 +152,9 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new EntityNotFoundException("Задача с ID " + taskId + " не найдена."));
 
-        // Обновляем куратора
+        // --- ИСПРАВЛЕНИЕ: Обновляем куратора, только если пришел новый ID ---
         if (curatorId != null) {
             task.setCurator(new User(curatorId));
-        } else {
-            task.setCurator(null);
         }
 
         // Обновляем список участников
@@ -210,8 +207,17 @@ public class TaskServiceImpl implements TaskService {
             dto.setAuthor(
                     new UserDto(task.getAuthor().getId(), task.getAuthor().getName(), task.getAuthor().getRole()));
         }
-        // Note: Members and Curator are handled by the getAppData flow, so we don't
-        // need to map them here for the return trip.
+        // --- ИСПРАВЛЕНИЕ: Добавляем куратора и участников в ответ ---
+        if (task.getCurator() != null) {
+            dto.setCurator(
+                    new UserDto(task.getCurator().getId(), task.getCurator().getName(), task.getCurator().getRole()));
+        }
+        if (task.getMembers() != null && !task.getMembers().isEmpty()) {
+            List<UserDto> memberDtos = task.getMembers().stream()
+                    .map(user -> new UserDto(user.getId(), user.getName(), user.getRole()))
+                    .toList();
+            dto.setMembers(memberDtos);
+        }
         return dto;
     }
 }

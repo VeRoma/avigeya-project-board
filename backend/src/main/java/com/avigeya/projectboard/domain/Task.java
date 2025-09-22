@@ -34,7 +34,7 @@ public class Task {
     private boolean isDeleted;
 
     @Version
-    private Integer version;
+    private int version;
 
     // --- СВЯЗИ С ДРУГИМИ СУЩНОСТЯМИ ---
 

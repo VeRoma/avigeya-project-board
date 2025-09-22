@@ -145,7 +145,7 @@ public class AppDataServiceImpl implements AppDataService {
                         dto.setMembers(memberDtos);
                 }
                 // Гарантируем, что версия никогда не будет null
-                dto.setVersion(task.getVersion() != null ? task.getVersion() : 0);
+                dto.setVersion(task.getVersion());
                 return dto;
         }
 }

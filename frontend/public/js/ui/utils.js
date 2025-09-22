@@ -271,6 +271,11 @@ export function getCurrentTaskDataFromDOM(activeEditElement) {
     const memberIds = (activeEditElement.querySelector('.task-responsible-view').dataset.memberIds || '').split(',').filter(Boolean);
     const members = store.getUsersByIds(memberIds);
 
+    // --- ИСПРАВЛЕНИЕ: Получаем статус из нового переключателя ---
+    const activeStatusOption = activeEditElement.querySelector('.status-toggle .toggle-option.active');
+    const statusId = activeStatusOption ? activeStatusOption.dataset.statusId : null;
+    const statusObject = statusId ? store.getAllStatuses().find(s => String(s.id) === statusId) : null;
+
     // --- ЛОГ: Проверяем, что считывается из data-атрибута ---
     console.log(`[UTILS] > getCurrentTaskDataFromDOM: Считывание data-version="${activeEditElement.dataset.version}"`);
 
@@ -279,8 +284,9 @@ export function getCurrentTaskDataFromDOM(activeEditElement) {
         name: activeEditElement.querySelector('.task-name-edit').value,
         message: activeEditElement.querySelector('.task-message-edit').value,
         projectId: activeEditElement.querySelector('.task-project-view').dataset.projectId,
+        priority: originalTask.priority, // --- ИСПРАВЛЕНИЕ: Добавляем текущий приоритет ---
         stageId: activeEditElement.querySelector('.task-stage-view').dataset.stageId,
-        status: store.findStatusByName(activeEditElement.querySelector('.task-status-view').textContent),
+        status: statusObject,
         curator: members.length > 0 ? members[0] : null,
         members: members,
         version: parseInt(activeEditElement.dataset.version, 10),

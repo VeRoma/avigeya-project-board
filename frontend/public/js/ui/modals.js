@@ -175,16 +175,16 @@ export function openAddTaskModal(allProjects, allUsers, userRole, userName) {
     const projectsOptions = allProjects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
     
     const allStatuses = store.getAllStatuses();
-    const allowedStatusIds = new Set(['1', '5', '6']); // These are IDs as strings
-    const filteredStatuses = allStatuses.filter(status => allowedStatusIds.has(String(status.id))); // Use status.id
-    filteredStatuses.sort((a, b) => a.order - b.order);
+    // --- ИСПРАВЛЕНИЕ: Убираем фильтрацию, используем все статусы ---
+    // <span class="toggle-text">${status.name}</span>
+    allStatuses.sort((a, b) => a.order - b.order);
 
-    const statusToggleHtml = filteredStatuses.map((status, index) => {
+    const statusToggleHtml = allStatuses.map((status, index) => {
         const isActive = index === 0 ? 'active' : ''; 
         return `
             <div class="toggle-option ${isActive}" data-status="${status.name}">
                 <span class="toggle-icon">${status.icon}</span>
-                <span class="toggle-text">${status.name}</span>
+                
             </div>
         `;
     }).join('');
@@ -212,10 +212,18 @@ export function openAddTaskModal(allProjects, allUsers, userRole, userName) {
                         <option value="" disabled selected>Сначала выберите проект...</option>
                     </select>
                 </div>
+
+                
                 <div>
-                    <label class="text-xs font-medium text-gray-500">Статус</label>
-                    <div id="new-task-status-toggle" class="status-toggle">${statusToggleHtml}</div>
+                    <label class="text-xs font-medium text-gray-500">
+                        Статус
+                    </label>
+
+                    <div id="new-task-status-toggle" class="status-toggle">
+                        ${statusToggleHtml}
+                    </div>
                 </div>
+
                 <div id="new-task-users-container" style="display: none;">
                     <label class="text-xs font-medium text-gray-500">Ответственные</label>
                     <div id="new-task-users-list" class="modal-body-user mt-1 border rounded-md p-2">

@@ -47,9 +47,11 @@ function initializeApp() {
                     const updatedTaskData = uiUtils.getCurrentTaskDataFromDOM(detailsContainer);
                     if (!updatedTaskData) return; // Если данные не собрались, ничего не делаем
                     
+                    const accordionState = uiUtils.getAccordionState(); // --- ИСПРАВЛЕНИЕ: Сохраняем состояние аккордеона ---
                     handlers.handleSaveActiveTask(updatedTaskData).then(() => {
                         // После успешного сохранения перерисовываем приложение
-                        rerenderApp();
+                        // --- ИСПРАВЛЕНИЕ: Передаем сохраненное состояние ---
+                        rerenderApp(accordionState);
                     });
                 };
 
@@ -63,12 +65,19 @@ function initializeApp() {
         if (editModeContainer) {
             console.log('[CLICK HANDLER] > Matched: Field inside Edit Mode');
             event.stopPropagation();
+
+            // --- ИСПРАВЛЕНИЕ: Обработка нового переключателя статусов ---
+            const statusToggleOption = event.target.closest('.status-toggle .toggle-option');
+            if (statusToggleOption) {
+                editModeContainer.querySelectorAll('.status-toggle .toggle-option').forEach(opt => opt.classList.remove('active'));
+                statusToggleOption.classList.add('active');
+                return; // Завершаем обработку
+            }
+            // ---------------------------------------------------------
+
             const modalType = event.target.dataset.modalType;
             const activeTaskDetailsElement = editModeContainer;
-            if (modalType === 'status') {
-                const taskId = activeTaskDetailsElement.closest('[data-task-id]').dataset.taskId;
-                modals.openStatusModal(taskId);
-            } else if (modalType === 'user') {
+            if (modalType === 'user') {
                 const appData = store.getAppData();
                 modals.openUserModal(activeTaskDetailsElement, store.getAllUsers(), appData.userRole);
             } else if (modalType === 'project') {
@@ -290,8 +299,8 @@ function initializeApp() {
         currentAfterElement = null; // Сбрасываем состояние в конце
         uiUtils.showFab();
     });
-
-    function rerenderApp() {
+    
+    function rerenderApp(accordionState = {}) {
     const appData = store.getAppData();
     const activeFilters = store.getActiveStageFilters();
     const activeFiltersSet = new Set(activeFilters);
@@ -343,7 +352,7 @@ function initializeApp() {
         projectsToRender = projectsToRender.filter(p => p.tasks.length > 0);
         console.log(`[MAIN] > Проектов для рендеринга после фильтрации: ${projectsToRender.length}`);
 
-        render.renderProjects(projectsToRender, appData.userName, appData.userRole, {});
+        render.renderProjects(projectsToRender, appData.userName, appData.userRole, accordionState);
     } else {
         render.renderTasksView(filteredTasks, store.getAllStatuses(), activeModeBtn.id === 'view-btn-my-tasks');
     }
